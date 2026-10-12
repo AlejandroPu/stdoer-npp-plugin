@@ -19,3 +19,6 @@ Release/
 *.exe
 CMakeFiles/
 CMakeCache.txt
+
+# Archivos de prueba con contenido personal: nunca al git
+pruebas/

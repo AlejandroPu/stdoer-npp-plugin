@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Registro del lexer externo "stdoer" en Notepad++. Se instala en
+     <Notepad++>\plugins\Config\Stdoer.xml (el nombre debe coincidir con Stdoer.dll).
+     Sin colores a propósito: solo un estilo "DEFAULT" sin colores ni fuente. -->
+<NotepadPlus>
+    <LexerStyles>
+        <LexerType name="stdoer" desc="Stdoer" ext="stdoer">
+            <WordsStyle name="DEFAULT" styleID="0" />
+        </LexerType>
+    </LexerStyles>
+</NotepadPlus>
