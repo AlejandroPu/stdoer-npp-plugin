@@ -1,0 +1,66 @@
+Demostración de llaves (stdoer 0.3.0)
+Contrae con las flechitas del margen o con Ver → Contraer todo.
+Cada sección dice qué debería pasar. Esto es un texto de ejemplo inventado.
+
+Sección 1 — caso básico {
+Estas dos líneas están al mismo nivel (la sangría no las agrupa)
+y se esconden juntas al contraer la línea de arriba.
+}
+
+Sección 2 — regiones anidadas {
+Texto de la región exterior.
+Interior A {
+a1
+a2
+}
+Interior B {
+b1
+}
+Fin de la región exterior.
+}
+
+Sección 3 — sangría dentro de una región {
+Línea suelta
+Un título con sangría
+    detalle uno
+    detalle dos
+Otra línea suelta
+}
+
+Sección 4 — región dentro de un bloque con sangría
+    Un bloque que se contrae por sangría
+        con una región adentro {
+        x1
+        x2
+        }
+        y una línea después de la región
+
+Sección 5 — llaves que NO hacen nada: la prosa no se contrae
+La lista {a, b} y el conjunto { c } están en medio de la frase.
+Una llave } al final, o una { al inicio, tampoco cuenta.
+"una cadena con llave en medio { y comillas"
+No se confunde con los apóstrofes: it's l'été.
+
+Sección 6 — una } sin pareja se ignora
+}
+Esta línea y las de abajo se ven normales.
+
+Sección 7 — cierra y abre en la misma línea {
+si pasa esto
+} si no, esto otro {
+alternativa
+}
+
+Sección 8 — región vacía (sin pliegue) {
+}
+
+Sección 9 — comillas y # no importan para las llaves {
+x = "texto"
+}
+# una nota que termina en llave {
+vale igual
+}
+
+Sección final — una { sin cerrar se ignora y no esconde nada {
+Esta línea queda visible.
+Y esta también, hasta el final del documento.

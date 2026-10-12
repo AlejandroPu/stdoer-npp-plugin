@@ -6,14 +6,20 @@
 #   .\tests\abrir-lado-a-lado.ps1 -Base build\cmp\01_blancos
 #
 # -Base es la ruta SIN extensión; deben existir <Base>.py y <Base>.stdoer.
+# Alternativa: -Izq y -Der con rutas completas de dos archivos cualesquiera (p. ej. dos .stdoer):
+#   .\tests\abrir-lado-a-lado.ps1 -Izq pruebas\demo-llaves.stdoer -Der pruebas\muestra-personal.stdoer
 # Solo usa el portátil (-multiInst -nosession). No modifica ningún documento.
 
-param([string]$Base = 'pruebas\muestra-personal')
+param([string]$Base = 'pruebas\muestra-personal', [string]$Izq = '', [string]$Der = '')
 
 $ErrorActionPreference = 'Stop'
 $raiz = Split-Path -Parent $PSScriptRoot
 $exe  = Join-Path $raiz 'npp-portable\notepad++.exe'
-$py = Join-Path $raiz ($Base + '.py'); $st = Join-Path $raiz ($Base + '.stdoer')
+if ($Izq -ne '' -and $Der -ne '') {
+    $py = Join-Path $raiz $Izq; $st = Join-Path $raiz $Der
+} else {
+    $py = Join-Path $raiz ($Base + '.py'); $st = Join-Path $raiz ($Base + '.stdoer')
+}
 foreach ($f in $py, $st) { if (-not (Test-Path $f)) { throw "No existe $f" } }
 
 Add-Type -TypeDefinition @'

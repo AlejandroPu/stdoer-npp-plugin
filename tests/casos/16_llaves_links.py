@@ -1,9 +1,9 @@
 @dec
 def f():
-    if x: {
+    if x: {y}
         y
-    }
-    __link[F: b\c.txt]
+    z = {1: 2}
+    __link[F:\G b\c.txt]
   # c
 
   z

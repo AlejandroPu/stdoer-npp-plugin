@@ -57,7 +57,7 @@ foreach ($f in $fuentes) {
     $base = [IO.Path]::GetFileNameWithoutExtension($f.Name)
     $py = Join-Path $work ($base + '.py'); $st = Join-Path $work ($base + '.stdoer')
     Copy-Item $f.FullName $py; Copy-Item $f.FullName $st
-    $archivos += [pscustomobject]@{ Base = $base; Py = $py; St = $st; Bytes = (Get-Item $py).Length }
+    $archivos += [pscustomobject]@{ Base = $base; Py = $py; St = $st; Bytes = (Get-Item $py).Length; Personal = ($f.DirectoryName -eq $personal) }
 }
 $lista = @(); foreach ($a in $archivos) { $lista += $a.Py; $lista += $a.St }
 
@@ -137,7 +137,7 @@ foreach ($a in $archivos) {
         if (-not $mismo) { $reporte.Add("   distinto número de líneas: py=$($r1.Niveles.Count) stdoer=$($r2.Niveles.Count)") }
         foreach ($k in $diffs) { $reporte.Add("   línea $($k+1): py=$(Fmt $r1.Niveles[$k])  stdoer=$(Fmt $r2.Niveles[$k])") }
     }
-    if ($a.Base -notmatch '^muestra') {   # detalle solo de los casos inventados
+    if (-not $a.Personal) {   # detalle solo de los casos inventados (las copias personales no se vuelcan)
         $reporte.Add('   py     : ' + (($r1.Niveles | ForEach-Object { Fmt $_ }) -join ' '))
         $reporte.Add('   stdoer : ' + (($r2.Niveles | ForEach-Object { Fmt $_ }) -join ' '))
     }
