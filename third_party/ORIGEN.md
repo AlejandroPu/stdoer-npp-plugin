@@ -31,5 +31,5 @@ y solo cambia el nombre, la extensión y las propiedades de plegado. Si algún d
 modifica una copia de `lexilla/`, anotarlo aquí.
 
 Historial: en 0.2.0 se tomó de la etiqueta `v8.8.1` (Lexilla 5.4.4). Al pasar a 8.8.2
-(0.3.0) se volvieron a bajar los 37 archivos; cambiaron 13 (lexlib, SciLexer.h,
+(0.3.0) se volvieron a bajar los 37 archivos; cambiaron 14 (lexlib, SciLexer.h,
 Scintilla*.h, version.txt y LexPython.cxx, cuya diferencia es de estilo de código).
