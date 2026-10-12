@@ -12,7 +12,7 @@ Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archiv
 ## Requisitos
 
 - Visual Studio Build Tools 2026 en `D:\VisualStudio\BuildTools` (MSVC + Windows SDK).
-- Notepad++ 8.8.1 x64 portátil en `npp-portable\` (no está en git; ver más abajo).
+- Notepad++ 8.8.2 x64 portátil en `npp-portable\` (no está en git; ver más abajo).
 
 ## Compilar
 
@@ -97,9 +97,9 @@ lexer debe volver a pasar esta prueba.
 
 ## Reconstruir `npp-portable\`
 
-Es una copia del zip oficial `npp.8.8.1.portable.x64.zip` de
-https://github.com/notepad-plus-plus/notepad-plus-plus/releases/tag/v8.8.1
-(SHA-256 `a123ba8c547f62dcb48617acf8fff928117e7e8bc13b5fa5fd160d7bc9807817`),
+Es una copia del zip oficial `npp.8.8.2.portable.x64.zip` de
+https://github.com/notepad-plus-plus/notepad-plus-plus/releases/tag/v8.8.2
+(SHA-256 `26e480873fc2bdf39eaedf936bcaae75430089d802381abad2589060c0ef703d`),
 extraída en `npp-portable\`. Está en `.gitignore`.
 
 ## Estructura
@@ -108,7 +108,7 @@ extraída en `npp-portable\`. Está en `.gitignore`.
 - `src\StdoerLexer.cxx` — puntos de entrada del lexer externo (propio).
 - `config\Stdoer.xml` — registro del lexer en Notepad++.
 - `third_party\plugintemplate\` — cabeceras de interfaz de plugins (GPL v2+, sin
-  modificar). `third_party\lexilla\` — Lexilla 5.4.4 (HPND, sin modificar). Origen y
+  modificar). `third_party\lexilla\` — Lexilla 5.4.5 (HPND, sin modificar). Origen y
   licencias en `third_party\ORIGEN.md`.
 - `compilar.cmd`, `instalar.cmd` — compilar e instalar en el portátil.
 - `tests\` — `comparar-plegado.ps1`, `abrir-lado-a-lado.ps1` y `casos\` (inventados).
