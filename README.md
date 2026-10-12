@@ -73,10 +73,9 @@ Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archiv
 
 ### Límites conocidos de los enlaces
 
-- **Cortar / copiar / pegar** comparten con Suprimir y con escribir sobre una selección la
-  misma comprobación de Scintilla (y una selección que toca un enlace lo muestra antes), pero
-  **no se probaron con el portapapeles real** para no pisar el del usuario
-  (`tests\seguridad-enlaces.ps1` los prueba si se le permite).
+- **Cortar / copiar / pegar** se probaron con el portapapeles real (el script lo guarda y lo
+  restaura si es solo texto): 0 cambios ocultos (`tests\seguridad-enlaces.ps1`, 331
+  escenarios en total; ejecutarlo con `powershell -STA`, que el portapapeles lo exige).
 - **Otro plugin** que reemplace texto por programa (`SCI_REPLACETARGET`) sin pasar por
   «Reemplazar todo» puede cambiar una ruta oculta sin aviso. «Reemplazar en archivos» y
   arrastrar y soltar tampoco se probaron.
@@ -203,7 +202,7 @@ Windows. Incluye una ruta de red que no responde (el clic debe volver en ~1 s).
 .\tests\seguridad-enlaces.ps1 [-SinPortapapeles]
 ```
 
-Barrido de seguridad del texto oculto (215 escenarios): escribir, Retroceso, Suprimir con el
+Barrido de seguridad del texto oculto (331 escenarios con portapapeles, 215 sin él): escribir, Retroceso, Suprimir con el
 cursor en cada posición de un enlace, selecciones, reemplazar, «Reemplazar todo» con el diálogo
 real, Deshacer/Rehacer. Criterio: ninguna acción cambia la ruta oculta sin que se vea.
 
