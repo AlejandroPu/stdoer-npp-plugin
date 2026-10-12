@@ -96,23 +96,26 @@ namespace Llaves
 			const bool cabeceraPython = original >= 0 && (original & kCabecera) != 0;
 			nivelPrevio = numero;
 
-			// 1) "}" con pareja: cierra su región y todo lo que se abrió dentro.
+			// 1) "}" con pareja: cierra su región y todo lo que se abrió dentro. Si la línea solo
+			//    cierra, queda DENTRO de la región (al contraer se esconde con ella); si además
+			//    abre otra ("} sino {"), no puede esconderse con la primera y ser cabecera de la
+			//    segunda a la vez: queda fuera de la primera y es la cabecera de la segunda.
+			int profundidadCierre = -1;
 			if (lineas[i].cierra)
 			{
-				while (!pila.empty())
-				{
-					const bool eraLlave = pila.back().llave;
+				while (!pila.empty() && !pila.back().llave)
 					pila.pop_back();
-					if (eraLlave)
-						break;
-				}
+				if (!lineas[i].abre)
+					profundidadCierre = static_cast<int>(pila.size());  // cuenta la llave: nivel del contenido
+				if (!pila.empty())
+					pila.pop_back();
 			}
 			// 2) Bloques por sangría que terminan aquí. No atraviesan la llave de su región:
 			//    dentro de una región se compara la sangría solo con la de la misma región.
 			while (!pila.empty() && !pila.back().llave && pila.back().nivel >= numero)
 				pila.pop_back();
 
-			profundidades[i] = static_cast<int>(pila.size());
+			profundidades[i] = (profundidadCierre >= 0) ? profundidadCierre : static_cast<int>(pila.size());
 			// Una línea que abre "{" abre un solo marco, el de la región: si además Python la
 			// marcó cabecera (la línea siguiente está más sangrada), la región manda y los
 			// niveles quedan consecutivos.
@@ -128,9 +131,8 @@ namespace Llaves
 			}
 		}
 
-		// Segunda pasada: una línea es cabecera solo si la siguiente queda más adentro; así
-		// "{" seguido de "}" (región vacía) o un "}" con sangría que cierra de inmediato no
-		// dejan un pliegue sin nada que esconder.
+		// Segunda pasada: una línea es cabecera solo si la siguiente queda más adentro; así un
+		// marco que no tiene nada debajo no deja un pliegue sin nada que esconder.
 		bool cambio = false;
 		for (std::size_t i = 0; i < n; ++i)
 		{

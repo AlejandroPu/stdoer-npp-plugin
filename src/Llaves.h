@@ -10,7 +10,10 @@
 //   - Emparejado por pila, de arriba hacia abajo, sin mirar la sangría.
 //   - Dentro de una región { } la contracción por sangría sigue funcionando; la sangría
 //     se compara solo entre líneas de la misma región (un dedent no saca de la región).
-//   - La línea "}" queda fuera de la región (visible al contraer), como en C.
+//   - La línea "}" queda DENTRO de la región: al contraer se esconde con ella y solo se ve la
+//     línea "{". Excepción: "} sino {" cierra una región y abre otra, así que no puede
+//     esconderse con la primera y ser cabecera de la segunda a la vez; queda fuera de la
+//     primera (visible) y es la cabecera de la segunda.
 
 #pragma once
 

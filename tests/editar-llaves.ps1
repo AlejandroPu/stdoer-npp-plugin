@@ -52,17 +52,17 @@ function Comprobar($nombre, $esperado) {
     Write-Host ("{0,-52} {1}" -f $nombre, $(if ($ok) { 'OK' } else { "MAL  esperado=[$esperado] obtenido=[$obt]" }))
 }
 # Texto: "Titulo {\nuno\ndos\n}\nfuera\n"  -> "}" en la posición 17; fin de "uno" en 12.
-Comprobar 'inicial (sin editar)' '0H 1 1 0 0 0'
+Comprobar 'inicial (sin editar)' '0H 1 1 1 0 0'
 [void](Send $vista $SCI_DELETERANGE 17 1)
 Comprobar 'borrar la "}" -> "{" queda sin pareja y se ignora' '0 0 0 0 0 0'
 [void](Send $vista $SCI_UNDO)
-Comprobar 'deshacer -> vuelve la región' '0H 1 1 0 0 0'
+Comprobar 'deshacer -> vuelve la región' '0H 1 1 1 0 0'
 [void](Send $vista $SCI_GOTOPOS 12); [void](Send $vista $WM_CHAR ([int][char]'{') 0)
-Comprobar 'teclear "{" al final de "uno" (la "}" casa con esa)' '0 0H 1 0 0 0'
+Comprobar 'teclear "{" al final de "uno" (la "}" casa con esa)' '0 0H 1 1 0 0'
 [void](Send $vista $SCI_UNDO)
-Comprobar 'deshacer -> vuelve la región original' '0H 1 1 0 0 0'
+Comprobar 'deshacer -> vuelve la región original' '0H 1 1 1 0 0'
 [void](Send $vista $SCI_GOTOPOS 12); [void](Send $vista $WM_CHAR ([int][char]'}') 0)
-Comprobar '"}" tecleada al final de "uno" (no es primer carácter)' '0H 1 1 0 0 0'
+Comprobar '"}" tecleada al final de "uno" (no es primer carácter)' '0H 1 1 1 0 0'
 Write-Host "RESUMEN: $mal fallos"
 # El documento quedó modificado (es una copia en build\editar, nunca se guarda): se termina el proceso
 # propio en vez de pedir el cierre normal, que abriría un aviso de guardar.
