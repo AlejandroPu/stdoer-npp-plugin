@@ -14,4 +14,9 @@ namespace EnlacesUI
 {
 	void Iniciar(const NppData& datos);
 	void Notificar(const SCNotification* n);
+
+	// Mensaje de otro programa (NPPM_MSGTOPLUGIN). Solo en modo de pruebas (variable de entorno
+	// STDOER_SIN_SHELL): internalMsg 1 = mostrar el recuadro del enlace en la posición `*info`
+	// (long long) del documento actual, como si el mouse se hubiera detenido ahí.
+	LRESULT MensajeDePrueba(const CommunicationInfo* ci);
 }

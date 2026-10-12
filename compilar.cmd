@@ -8,7 +8,8 @@ if not exist "%VC%" ( echo No se encuentra %VC% & exit /b 1 )
 call "%VC%" >nul 2>&1
 if errorlevel 1 ( echo Fallo al cargar el entorno del compilador & exit /b 1 )
 cd /d "%~dp0"
-if exist build rmdir /s /q build
+if exist build\obj rmdir /s /q build\obj
+if exist build\Stdoer.dll del /q build\Stdoer.dll
 mkdir build\obj
 
 set "COMUN=/nologo /std:c++17 /EHsc /O2 /utf-8 /validate-charset /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /c"

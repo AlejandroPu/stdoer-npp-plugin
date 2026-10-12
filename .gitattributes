@@ -4,3 +4,4 @@ tests/casos/* -text
 third_party/** -text
 tests/llaves/* -text
 tests/enlaces/* -text
+tests/objetivos/* -text

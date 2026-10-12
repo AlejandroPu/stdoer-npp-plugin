@@ -54,8 +54,10 @@ extern "C" __declspec(dllexport) void beNotified(SCNotification* notificacion)
 	EnlacesUI::Notificar(notificacion);
 }
 
-extern "C" __declspec(dllexport) LRESULT messageProc(UINT, WPARAM, LPARAM)
+extern "C" __declspec(dllexport) LRESULT messageProc(UINT mensaje, WPARAM, LPARAM lParam)
 {
+	if (mensaje == NPPM_MSGTOPLUGIN)
+		return EnlacesUI::MensajeDePrueba(reinterpret_cast<const CommunicationInfo*>(lParam));
 	return TRUE;
 }
 

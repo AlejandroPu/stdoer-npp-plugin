@@ -22,3 +22,6 @@ CMakeCache.txt
 
 # Archivos de prueba con contenido personal: nunca al git
 pruebas/
+
+# Archivo de prueba (texto con extension .exe; nunca se ejecuta)
+!tests/objetivos/inofensivo.exe

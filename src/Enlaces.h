@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace Enlaces
@@ -47,6 +48,10 @@ namespace Enlaces
 	// se muestran. Lo escribe el plugin; lo lee el lexer al dar estilo. -1 = ninguno.
 	void FijarRevelado(long long ini, long long fin);
 	void LeerRevelado(long long& ini, long long& fin);
+
+	// Zonas de ruta que se muestran además de la selección (enlaces cuya ruta cambió por una vía
+	// que no se ve, como "Reemplazar todo"). Cada zona es un intervalo de cursor [ini, fin].
+	void FijarExpuestos(const std::vector<std::pair<long long, long long>>& zonas);
 
 	// Estilo que corresponde a la ruta del enlace, según el estado compartido.
 	int EstiloDeRuta(const Enlace& e, long long base);

@@ -18,6 +18,23 @@ public static class NppT {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder sb, int n);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+    [DllImport("kernel32.dll")] public static extern uint SetErrorMode(uint modo);
+    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] struct STARTUPINFO {
+        public int cb; public string lpReserved, lpDesktop, lpTitle; public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public short wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError; }
+    [StructLayout(LayoutKind.Sequential)] struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessW(string app, StringBuilder cmd, IntPtr pa, IntPtr ta, bool inh, uint flags, IntPtr env, string dir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+    // Lanza un proceso SIN la bandera CREATE_DEFAULT_ERROR_MODE (que usa Start-Process): así hereda el
+    // modo de error de este proceso (sin cuadro "Depurar / Cerrar programa" si el portátil se cae).
+    public static int Lanzar(string exe, string argumentos, string carpeta) {
+        STARTUPINFO si = new STARTUPINFO(); si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+        PROCESS_INFORMATION pi;
+        var linea = new StringBuilder("\"" + exe + "\" " + argumentos);
+        if (!CreateProcessW(null, linea, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, carpeta, ref si, out pi)) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+        return pi.dwProcessId;
+    }
     [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint acc, bool inh, uint pid);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr p, IntPtr a, UIntPtr n, uint t, uint prot);
@@ -25,6 +42,44 @@ public static class NppT {
     [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr p, IntPtr a, byte[] b, UIntPtr n, out UIntPtr w);
     [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr p, IntPtr a, byte[] b, UIntPtr n, out UIntPtr r);
 
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr l);
+    [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr h, int id);
+    [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageStr(IntPtr h, uint m, IntPtr w, string s);
+    // Ventana de nivel superior del proceso que tiene un control con ese identificador (p. ej. un diálogo).
+    public static string Ventanas(uint pid) {
+        var sb2 = new StringBuilder();
+        EnumWindows((h, l) => {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p == pid) { var c = new StringBuilder(64); var x = new StringBuilder(80); GetClassName(h, c, 64); GetWindowText(h, x, 80);
+                sb2.Append(h.ToString() + " vis=" + IsWindowVisible(h) + " cls=" + c + " txt=" + x + "; "); }
+            return true; }, IntPtr.Zero);
+        return sb2.ToString();
+    }
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+    public static IntPtr BuscarDialogo(uint pid, int idControl) {
+        IntPtr hallado = IntPtr.Zero;
+        EnumWindows((h, l) => {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p == pid && IsWindowVisible(h) && GetDlgItem(h, idControl) != IntPtr.Zero) { hallado = h; return false; }
+            return true; }, IntPtr.Zero);
+        return hallado;
+    }
+    // NPPM_MSGTOPLUGIN: manda un mensaje privado a un plugin (struct CommunicationInfo en memoria remota).
+    public static long MensajeAPlugin(IntPtr hNpp, string modulo, int internalMsg, long valor) {
+        IntPtr mem = VirtualAllocEx(proc, IntPtr.Zero, (UIntPtr)512, 0x3000, 0x04);
+        byte[] b = new byte[512];
+        long baseAddr = (long)mem;
+        Array.Copy(BitConverter.GetBytes(internalMsg), 0, b, 0, 4);           // internalMsg
+        Array.Copy(BitConverter.GetBytes(baseAddr + 128), 0, b, 8, 8);         // srcModuleName
+        Array.Copy(BitConverter.GetBytes(baseAddr + 64), 0, b, 16, 8);         // info -> valor
+        Array.Copy(BitConverter.GetBytes(valor), 0, b, 64, 8);
+        byte[] src = Encoding.Unicode.GetBytes("Pruebas.dll\0"); Array.Copy(src, 0, b, 128, src.Length);
+        byte[] dst = Encoding.Unicode.GetBytes(modulo + "\0"); Array.Copy(dst, 0, b, 256, dst.Length);
+        UIntPtr n; WriteProcessMemory(proc, mem, b, (UIntPtr)512, out n);
+        long r = (long)SendMessage(hNpp, 0x400 + 1000 + 47, (IntPtr)(baseAddr + 256), mem);
+        VirtualFreeEx(proc, mem, UIntPtr.Zero, 0x8000);
+        return r;
+    }
     public static List<IntPtr> Scintillas(IntPtr parent) {
         var r = new List<IntPtr>();
         EnumChildWindows(parent, (h, l) => {
@@ -67,17 +122,17 @@ $script:NPPM_GETBUFFERIDFROMPOS = $NPPMSG + 59
 $script:NPPM_GETCURRENTBUFFERID = $NPPMSG + 60
 $script:NPPM_GETBUFFERLANGTYPE = $NPPMSG + 64
 $script:NPPM_MENUCOMMAND = $NPPMSG + 48
-$script:P = $null; $script:H = [IntPtr]::Zero; $script:V = [IntPtr]::Zero
+$script:ProcNpp = $null; $script:HNpp = [IntPtr]::Zero; $script:VNpp = [IntPtr]::Zero
 
-function Sci([uint32]$m, [int64]$w = 0, [int64]$l = 0) { [int64][NppT]::SendMessage($script:V, $m, [IntPtr]$w, [IntPtr]$l) }
-function NppMsg([uint32]$m, [int64]$w = 0, [int64]$l = 0) { [int64][NppT]::SendMessage($script:H, $m, [IntPtr]$w, [IntPtr]$l) }
-function SciCadena([uint32]$m, [int64]$w, [string]$s) { [NppT]::SendBytes($script:V, $m, $w, [Text.Encoding]::UTF8.GetBytes($s)) }
+function Sci([uint32]$m, [int64]$w = 0, [int64]$l = 0) { [int64][NppT]::SendMessage($script:VNpp, $m, [IntPtr]$w, [IntPtr]$l) }
+function NppMsg([uint32]$m, [int64]$w = 0, [int64]$l = 0) { [int64][NppT]::SendMessage($script:HNpp, $m, [IntPtr]$w, [IntPtr]$l) }
+function SciCadena([uint32]$m, [int64]$w, [string]$s) { [NppT]::SendBytes($script:VNpp, $m, $w, [Text.Encoding]::UTF8.GetBytes($s)) }
 
 # Texto completo del documento activo, como cadena UTF-8.
 function SciTexto {
     $n = Sci 2006   # SCI_GETLENGTH
     [long]$ret = 0
-    $b = [NppT]::RecibirBytes($script:V, 2182, $n + 1, $n + 1, [ref]$ret)
+    $b = [NppT]::RecibirBytes($script:VNpp, 2182, $n + 1, $n + 1, [ref]$ret)
     [Text.Encoding]::UTF8.GetString($b, 0, [int]$n)
 }
 
@@ -94,22 +149,39 @@ function SciMapaEstilos([string]$texto) {
     $sb.ToString()
 }
 
+# Cierra cualquier portátil de stdoer que haya quedado abierto (solo los de npp-portable; nunca
+# el Notepad++ instalado). Así una prueba que falló a medias no deja instancias acumuladas.
+function Npp-CerrarRestos {
+    Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'notepad++*' -and $_.Path -like '*\stdoer\npp-portable\*' } | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
 function Npp-Abrir([string[]]$Archivos, [string]$Log = '', [hashtable]$Entorno = @{}) {
+    Npp-CerrarRestos
+    Start-Sleep -Milliseconds 500
+    # Si el portátil de prueba se cae, que no muestre el cuadro "Depurar / Cerrar programa"
+    # (el modo de error se hereda al proceso hijo; el evento queda en el registro de Windows).
+    [void][NppT]::SetErrorMode(0x0001 -bor 0x0002)   # SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX
     $exe = Join-Path $script:Raiz 'npp-portable\notepad++.exe'
     $viejo = @{}
     if ($Log -ne '') { $Entorno['STDOER_LOG'] = $Log; Remove-Item $Log -ErrorAction SilentlyContinue }
     foreach ($k in $Entorno.Keys) { $viejo[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $Entorno[$k]) }
     $argsNpp = @('-multiInst', '-nosession') + ($Archivos | ForEach-Object { '"' + $_ + '"' })
-    $script:P = Start-Process $exe -ArgumentList $argsNpp -PassThru
+    $pidNpp = [NppT]::Lanzar($exe, ($argsNpp -join ' '), (Split-Path $exe))
+    $script:ProcNpp = Get-Process -Id $pidNpp
     foreach ($k in $Entorno.Keys) { [Environment]::SetEnvironmentVariable($k, $viejo[$k]) }
-    $script:H = [IntPtr]::Zero
-    for ($i = 0; $i -lt 60; $i++) { Start-Sleep -Milliseconds 500; $script:P.Refresh(); if ($script:P.MainWindowHandle -ne [IntPtr]::Zero) { $script:H = $script:P.MainWindowHandle; break } }
-    if ($script:H -eq [IntPtr]::Zero) { throw 'No apareció la ventana de Notepad++ portátil' }
-    [NppT]::Attach($script:H)
+    $script:HNpp = [IntPtr]::Zero
+    for ($i = 0; $i -lt 60; $i++) { Start-Sleep -Milliseconds 500; $script:ProcNpp.Refresh(); if ($script:ProcNpp.MainWindowHandle -ne [IntPtr]::Zero) { $script:HNpp = $script:ProcNpp.MainWindowHandle; break } }
+    if ($script:HNpp -eq [IntPtr]::Zero) { throw 'No apareció la ventana de Notepad++ portátil' }
+    [NppT]::Attach($script:HNpp)
+    # Aunque el script termine con un error, el portátil que abrió se cierra al salir.
+    Register-EngineEvent -SourceIdentifier PowerShell.Exiting -MessageData $script:ProcNpp.Id -Action {
+        $q = Get-Process -Id $Event.MessageData -ErrorAction SilentlyContinue
+        if ($q -and $q.Path -like '*\stdoer\npp-portable\*') { Stop-Process -Id $q.Id -Force }
+    } | Out-Null
     for ($i = 0; $i -lt 120; $i++) { Start-Sleep -Milliseconds 500; if ((NppMsg $NPPM_GETNBOPENFILES) -ge $Archivos.Count) { break } }
     Start-Sleep -Seconds 2
-    $sci = [NppT]::Scintillas($script:H)
-    $script:V = $sci[0]
+    $sci = [NppT]::Scintillas($script:HNpp)
+    $script:VNpp = $sci[0]
     # Los portátiles ven a veces una pestaña vacía "new 1" más: se ignora (se busca por ruta).
 }
 
@@ -119,7 +191,7 @@ function Npp-Documentos {
     for ($i = 0; $i -lt $n; $i++) {
         $id = NppMsg $NPPM_GETBUFFERIDFROMPOS $i 0
         [long]$ret = 0
-        $b = [NppT]::RecibirBytes($script:H, $NPPM_GETFULLPATHFROMBUFFERID, $id, 1040, [ref]$ret)
+        $b = [NppT]::RecibirBytes($script:HNpp, $NPPM_GETFULLPATHFROMBUFFERID, $id, 1040, [ref]$ret)
         $ruta = if ($ret -gt 0) { [Text.Encoding]::Unicode.GetString($b, 0, [int]($ret * 2)) } else { '' }
         $r += [pscustomobject]@{ Indice = $i; Ruta = $ruta }
     }
@@ -131,7 +203,43 @@ function Npp-Activar([int]$indice) { [void](NppMsg $NPPM_ACTIVATEDOC 0 $indice);
 # Cierra solo el portátil de stdoer que abrió este script (sin guardar nada).
 function Npp-Cerrar {
     [NppT]::Detach()
-    if ($script:P -and -not $script:P.HasExited) {
-        if ($script:P.Path -like '*\stdoer\npp-portable\*') { Stop-Process -Id $script:P.Id -Force }
+    if ($script:ProcNpp -and -not $script:ProcNpp.HasExited) {
+        if ($script:ProcNpp.Path -like '*\stdoer\npp-portable\*') { Stop-Process -Id $script:ProcNpp.Id -Force }
     }
+}
+
+
+# Reemplazar todo con el diálogo REAL de Notepad++ (Buscar y reemplazar -> "Reemplazar todo"),
+# no con mensajes sueltos: así se prueba el camino que usa el usuario.
+function Npp-ReemplazarTodoDialogo([string]$buscar, [string]$por) {
+    [void](NppMsg $NPPM_MENUCOMMAND 0 43003)    # IDM_SEARCH_REPLACE
+    $dlg = [IntPtr]::Zero
+    for ($i = 0; $i -lt 40; $i++) {
+        Start-Sleep -Milliseconds 150
+        $dlg = [NppT]::BuscarDialogo([uint32]$script:ProcNpp.Id, 1609)
+        if ($dlg -ne [IntPtr]::Zero) { break }
+    }
+    if ($dlg -eq [IntPtr]::Zero) { throw ('No apareció el diálogo de reemplazar. Ventanas: ' + [NppT]::Ventanas([uint32]$script:ProcNpp.Id)) }
+    $cBuscar = [NppT]::GetDlgItem($dlg, 1601); $cPor = [NppT]::GetDlgItem($dlg, 1602); $boton = [NppT]::GetDlgItem($dlg, 1609)
+    Start-Sleep -Milliseconds 500
+    [void][NppT]::SendMessageStr($cBuscar, 0x000C, [IntPtr]::Zero, $buscar)   # WM_SETTEXT
+    [void][NppT]::SendMessageStr($cPor, 0x000C, [IntPtr]::Zero, $por)
+    Start-Sleep -Milliseconds 500
+    # WM_COMMAND (BN_CLICKED) al diálogo, como un clic en "Reemplazar todo"
+    [void][NppT]::SendMessage($dlg, 0x0111, [IntPtr]1609, $boton)
+    Start-Sleep -Milliseconds 1500
+    # Cerrar como con Esc/Cancelar (IDCANCEL), no con un WM_CLOSE a la fuerza
+    [void][NppT]::SendMessage($dlg, 0x0111, [IntPtr]2, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 800
+}
+
+
+# Los mensajes de mouse sintéticos van en píxeles físicos, pero SCI_POINTXFROMPOSITION & co.
+# devuelven píxeles "lógicos" de Scintilla: con la pantalla al 125 % un clic caería una fila
+# más abajo. Esta función convierte un punto de la API de Scintilla al lParam de un mensaje de mouse.
+function Npp-LParamMouse([int]$x, [int]$y) {
+    $dpi = [NppT]::GetDpiForWindow($script:VNpp); if ($dpi -le 0) { $dpi = 96 }
+    $f = 96.0 / $dpi
+    $xs = [int][Math]::Round($x * $f); $ys = [int][Math]::Round($y * $f)
+    [IntPtr](($ys -shl 16) -bor ($xs -band 0xFFFF))
 }

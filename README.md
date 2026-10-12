@@ -3,13 +3,14 @@
 Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archivos
 `.stdoer`. Diseño completo en el proyecto de planeación: `diseno/lenguaje-notepad.md`.
 
-**Estado: 0.3.0.** Hace dos cosas:
+**Estado: 0.4.0.** Hace tres cosas:
 
 - Menú *Plugins → Stdoer → Acerca de Stdoer*.
 - **Lexer externo `stdoer`**, asociado a la extensión `.stdoer`, sin colores:
   - contracción por sangría idéntica a la de los `.py`;
   - **contracción con `{ }`** (reglas abajo).
-  Aún no hay enlaces.
+- **Enlaces `__link[ruta]`**: ruta oculta, recuadro al pasar el mouse y clic que abre
+  (reglas abajo). Aún no hay menú del clic derecho (activar/desactivar).
 
 ## Contracción con `{ }`
 
@@ -21,11 +22,70 @@ Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archiv
   sangría. Una `}` sin pareja se ignora. **Una `{` sin `}` pareja también se ignora:** un
   error de llaves nunca esconde más de la cuenta, y una `{` sin cerrar no puede tragarse el
   resto del documento. Solo cuenta una `{` que ya tenga su `}`.
-- La línea `}` queda **fuera** de la región: al contraer se ve `Titulo {` y luego `}`.
+- **La línea `}` se esconde con su región:** al contraer solo se ve la línea `{`.
+  Excepción: en `} sino {` (cierra una región y abre otra) la línea no puede esconderse con
+  la primera y ser cabecera de la segunda a la vez; queda **visible**, fuera de la primera,
+  y es la cabecera de la segunda.
 - Dentro de una región la contracción por sangría funciona; la sangría se compara solo
   entre líneas de la misma región (una línea menos sangrada que la `{` no saca de la región).
-- Una región vacía (`{` y `}` seguidas) no deja un pliegue sin nada que esconder.
+- Una región con solo la `}` debajo se contrae escondiendo esa `}`.
 - Sin llaves con pareja, el documento se contrae exactamente como un `.py`.
+
+## Enlaces `__link[ruta]`
+
+- **Qué es un enlace:** `__link[` + ruta + `]`, en una sola línea. El `]` que cierra es el
+  que equilibra los corchetes (la ruta puede tener `[ ]`). Varios por línea. Con un solo `_`
+  (`_link[...]`) o sin cerrar, es texto normal: no hace nada. Solo se mira el texto.
+- **La ruta se oculta**: se ve `__link[]` (estilo de Scintilla invisible). Esa ruta es
+  **inmodificable** mientras está oculta (Retroceso, Suprimir, escribir sobre una selección,
+  cortar y pegar no la tocan).
+- **La ruta se muestra sola** (en gris) mientras el cursor la toca (justo después de `[`,
+  dentro, o justo antes de `]`) o una selección la toca. Así, cualquier cambio a una ruta se
+  hace a la vista. Para editar una ruta: borrar un `_` (queda `_link[...]`, que se ve
+  completo), editar, volver a escribir el `_`.
+- **Recuadro al pasar el mouse** sobre el enlace: la ruta completa; si no existe, lo dice;
+  si es relativa, lo dice; si la comprobación no responde, lo dice.
+- **Clic izquierdo sobre `link[]`** (no sobre los `__`) abre. Con Shift, Ctrl o Alt no abre
+  (es seleccionar). Si la ruta no existe o es relativa, no hace nada. Solo se abren rutas
+  completas (`X:\...` o `\\servidor\...`).
+  - `.stdoer .py .txt .md .js .json .xml .ini .log .csv` → pestaña de Notepad++.
+  - Carpeta → Explorador.
+  - ⛔ **Nunca ejecuta nada.** Ejecutables, scripts, accesos directos y archivos con macros
+    (`.exe .bat .cmd .ps1 .vbs .lnk .msi .jar .docm .xlsm` y muchos más; la lista completa
+    está en `src\Enlaces.cpp`), y los archivos sin extensión, **muestran su carpeta** en el
+    Explorador. Para el resto (`.ods`, `.xlsx`, `.html`, `.pdf`...) se usa el programa que
+    Windows tenga asignado, salvo que esa asociación ejecute el propio archivo o no exista
+    (entonces también se muestra su carpeta).
+- **Comprobar si existe no congela Notepad++:** se hace en otro hilo con límite de 300 ms
+  (recuadro) y 1 s (clic). Una consulta que no termina no se repite durante 60 s.
+- **Aviso tras «Reemplazar todo»:** ese comando de Notepad++ no respeta el estilo no
+  modificable y apaga los avisos de edición; al terminar manda `NPPN_GLOBALMODIFIED`. El
+  plugin guarda la lista de rutas de cada documento y, si tras un «Reemplazar todo» aparece
+  una ruta distinta, **muestra esos enlaces** y pone una anotación bajo la línea («Se cambió la
+  ruta de este enlace sin que se viera... Ctrl+Z deshace»). Se quita al siguiente cambio del
+  texto o al cambiar de documento. Ver «Límites conocidos».
+- El plugin **no escribe nunca en el documento**: solo cambia estilos y anotaciones.
+- Estilos de Scintilla usados: 50 ruta oculta, 51 ruta visible, 52 `link[` y `]` (zona
+  clicable, *hotspot*). Se aplican solo mientras el documento activo es `.stdoer` y se
+  devuelven a la normalidad al salir de él (otro lexer podría usar esos números). Notepad++
+  reinicia los estilos (`SCI_STYLECLEARALL`) al cambiar de lenguaje o de tema; el plugin los
+  reaplica con los avisos `NPPN_*` y, como red de seguridad, en cada `SCN_UPDATEUI`.
+
+### Límites conocidos de los enlaces
+
+- **Cortar / copiar / pegar** comparten con Suprimir y con escribir sobre una selección la
+  misma comprobación de Scintilla (y una selección que toca un enlace lo muestra antes), pero
+  **no se probaron con el portapapeles real** para no pisar el del usuario
+  (`tests\seguridad-enlaces.ps1` los prueba si se le permite).
+- **Otro plugin** que reemplace texto por programa (`SCI_REPLACETARGET`) sin pasar por
+  «Reemplazar todo» puede cambiar una ruta oculta sin aviso. «Reemplazar en archivos» y
+  arrastrar y soltar tampoco se probaron.
+- Copiar una selección que incluye un enlace copia también su ruta oculta (es parte del texto).
+- El texto de la ruta cuenta para Buscar (un hallazgo dentro de una ruta oculta se muestra
+  al seleccionarse, por la regla de arriba).
+- El recuadro depende del evento de «mouse detenido» de Scintilla (500 ms); la lógica se
+  probó por mensaje directo al plugin, pero el evento real con el mouse real queda para
+  prueba manual.
 
 ## Requisitos
 
@@ -40,7 +100,8 @@ Desde esta carpeta, en PowerShell o `cmd`:
 .\compilar.cmd
 ```
 
-Deja `build\Stdoer.dll` (borra y rehace todo `build\`). Todo el código fuente es
+Deja `build\Stdoer.dll` (borra solo `build\obj\` y la DLL anterior; el resto de `build\`,
+donde las pruebas dejan sus copias, no se toca). Todo el código fuente es
 **UTF-8** y se compila con `/utf-8`; sin eso `cl` lo lee con la página de códigos local
 (1252) y los acentos salen mal (`ó` → `Ã³`).
 
@@ -60,9 +121,6 @@ Copia dos archivos al portátil; **nunca** toca `C:\Program Files\Notepad++` ni
 
 El XML es obligatorio: Notepad++ no carga un lexer externo sin un `<NombreDeLaDll>.xml`
 en `plugins\Config\`. Sus estilos están vacíos a propósito (todo se ve como texto plano).
-Un archivo `.stdoer` abierto en el portátil queda con el lexer `stdoer` (comprobado por
-mensajes: el tipo de lenguaje del documento es el del primer lexer externo, distinto del
-de Python).
 
 ## Abrir el portátil para probar
 
@@ -83,9 +141,21 @@ Para ver un `.py` y su copia `.stdoer` lado a lado (izquierda `.py`, derecha `.s
 .\tests\abrir-lado-a-lado.ps1 -Base pruebas\muestra-personal
 ```
 
-(`-Base` es la ruta sin extensión; deben existir `<Base>.py` y `<Base>.stdoer`.)
+(`-Base` es la ruta sin extensión; deben existir `<Base>.py` y `<Base>.stdoer`. También
+`-Izq <archivo> -Der <archivo>` para dos archivos cualesquiera.)
+
+Demostración de enlaces y de llaves (genera `pruebas\demo-enlaces.stdoer` con rutas a
+`tests\objetivos\` y lo abre junto a la demostración de llaves):
+
+```
+.\tests\abrir-demo-enlaces.ps1
+```
 
 ## Pruebas
+
+Todas usan **solo el portátil**, una instancia a la vez (`tests\herramientas-npp.ps1` cierra
+cualquier portátil de stdoer que haya quedado abierto y lo arranca sin el cuadro de error de
+Windows). Escriben sus copias en `build\<nombre>\`.
 
 ```
 .\tests\comparar-plegado.ps1
@@ -95,41 +165,87 @@ Abre en el portátil cada caso de `tests\casos\*.py` (inventados) y cada `prueba
 (copias personales, fuera del git) como `.py` y como `.stdoer`, y compara línea por línea
 el nivel de plegado que da Notepad++ (`SCI_GETFOLDLEVEL`). Debe dar **todo idéntico**
 (código de salida 0). Escribe el detalle en `build\cmp\reporte.txt`. Cualquier cambio al
-lexer debe volver a pasar esta prueba. (Los casos con llaves **sin pareja** o en medio de
-frases también van aquí: deben seguir idénticos a Python.)
+lexer debe volver a pasar esta prueba. (Los casos con llaves **sin pareja**, en medio de
+frases o con enlaces también van aquí: deben seguir idénticos a Python.)
 
 ```
 .\tests\verificar-llaves.ps1
 ```
 
 Abre cada `tests\llaves\*.stdoer` y compara el nivel de **cada línea** con su
-`.esperado` (profundidad y `H` = cabecera; razonados a mano, no copiados de la salida).
-Debe dar todo OK. Escribe `build\llaves\reporte.txt`.
+`.esperado` (profundidad y `H` = cabecera; razonados a mano, no copiados de la salida; el de
+`L23_demo` se fijó revisando la salida línea por línea). Debe dar todo OK.
 
 ```
 .\tests\editar-llaves.ps1
 ```
 
 Prueba de edición sobre una copia en memoria: borrar/teclear una llave y comprobar que se
-re-pliega todo el documento, también las líneas anteriores al cambio. Al terminar cierra
-su propio portátil sin guardar (es una copia en `build\`).
+re-pliega todo el documento, también las líneas anteriores al cambio.
+
+```
+.\tests\probar-enlaces.ps1
+```
+
+Por cada `tests\enlaces\*.stdoer`, el estilo de **cada byte** contra su `.esperado` (mapa a
+mano: `l` zona clicable, `h` ruta oculta, `r` ruta visible, `.` otro); atributos de los
+estilos; y mostrar/ocultar según el cursor y la selección.
+
+```
+.\tests\probar-clic-enlaces.ps1
+```
+
+Clic (mouse simulado) y recuadro sobre enlaces a los archivos de `tests\objetivos\`, leyendo
+el registro del plugin. Con `STDOER_SIN_SHELL` el plugin anota lo que abriría **sin** llamar a
+Windows. Incluye una ruta de red que no responde (el clic debe volver en ~1 s).
+
+```
+.\tests\seguridad-enlaces.ps1 [-SinPortapapeles]
+```
+
+Barrido de seguridad del texto oculto (215 escenarios): escribir, Retroceso, Suprimir con el
+cursor en cada posición de un enlace, selecciones, reemplazar, «Reemplazar todo» con el diálogo
+real, Deshacer/Rehacer. Criterio: ninguna acción cambia la ruta oculta sin que se vea.
+
+```
+.\tests\probar-persistencia-enlaces.ps1
+```
+
+El ocultamiento sobrevive a cambiar de pestaña, de lenguaje y a reiniciar los estilos.
 
 `pruebas\` está en `.gitignore`: ahí van copias de documentos personales. Nada personal
-va en archivos versionados (ni rutas ni nombres de mis documentos).
+va en archivos versionados (ni rutas ni nombres de mis documentos). Los archivos de
+`tests\objetivos\` son inventados; los scripts que hacen enlaces a ellos calculan la ruta
+completa al ejecutarse y escriben el resultado en `build\` o `pruebas\`.
+
+Variables de entorno de prueba (solo las pone el script de pruebas): `STDOER_LOG=<archivo>`
+(el plugin anota lo que hace) y `STDOER_SIN_SHELL=1` (no llama a Windows; además habilita el
+mensaje privado que usa el test del recuadro).
+
+`tests\unit\correr.cmd` compila y corre pruebas unitarias del analizador de enlaces; hace un
+`.exe` suelto que algunos antivirus marcan por heurística: no se usa en el flujo normal (las
+mismas reglas se prueban por el portátil).
 
 ## Cómo funciona el lexer (para quien lo modifique)
 
 - `src\StdoerLexer.cxx` exporta `GetLexerCount`, `GetLexerName` y `CreateLexer` (la
   interfaz de Lexilla que Notepad++ busca en los plugins). `CreateLexer("stdoer")`
-  devuelve el lexer de Python de Lexilla (`third_party\lexilla\lexers\LexPython.cxx`,
-  sin modificar) con las propiedades de plegado que Notepad++ fija para Python
-  (`fold`, `fold.compact=0`, `fold.quotes.python=1`). A un lexer externo nadie se las
-  fija, por eso van aquí.
-  Lo que devuelve `CreateLexer` no es el lexer de Python directo sino una **capa**
-  (`LexerStdoer`) que lo envuelve y le delega todo salvo `Fold`.
+  devuelve una **capa** (`LexerStdoer`) que envuelve el lexer de Python de Lexilla
+  (`third_party\lexilla\lexers\LexPython.cxx`, sin modificar) con las propiedades de plegado
+  que Notepad++ fija para Python (`fold`, `fold.compact=0`, `fold.quotes.python=1`). A un
+  lexer externo nadie se las fija, por eso van aquí. La capa delega todo en Python salvo
+  `Lex` y `Fold`.
+- **Python no ve las rutas de los enlaces:** el documento que se le entrega es un «documento
+  sombra» que reenvía todo al real pero sustituye por `x` los bytes de cada ruta de enlace.
+  Así comillas, `#` o `'''` dentro de una ruta no cambian su coloreado ni su plegado.
+- **`Lex`:** Python colorea el rango sobre el texto sin rutas; después `EstilarEnlaces` da a
+  cada enlace de esas líneas el estilo 52 a `link[` y `]`, y 50 ó 51 a la ruta (51 si el
+  cursor o la selección la tocan, o está «expuesta»; estado compartido con el plugin en
+  `Enlaces.cpp`). Se devuelve el «estilado hasta» al final del rango para que Scintilla no
+  vuelva a pedir lo mismo.
 - **Cómo se calcula el plegado (`LexerStdoer::Fold`):** (1) Python calcula el plegado por
-  sangría de todo el documento contra un documento «sombra» que anota los niveles en vez de
-  escribirlos; (2) `src\Llaves.cpp` mira el texto, empareja las llaves y reescribe los
+  sangría de todo el documento contra el documento sombra, que además anota los niveles en
+  vez de escribirlos; (2) `src\Llaves.cpp` mira el texto, empareja las llaves y reescribe los
   niveles con una pila de marcos (región `{ }` o bloque por sangría), dando a cada línea el
   nivel 1024 + marcos que la rodean; (3) se escriben al documento. Sin llaves con pareja se
   escriben los niveles de Python tal cual. Se recalcula **siempre el documento entero**
@@ -140,9 +256,9 @@ va en archivos versionados (ni rutas ni nombres de mis documentos).
   (`tests\comparar-plegado.ps1`). Ojo: el lexer mide la sangría con **tab = 8 columnas**
   siempre, sin importar el ancho de tab configurado en Notepad++ (así también se comporta
   Python).
-- Si se modifica la contracción, hay que volver a pasar las tres pruebas de `tests\`.
-- Límite conocido: el emparejado es por texto. Si se teclea una `{` al final de una línea
-  dentro de una región existente y aún sin su `}`, esa `{` se empareja con la `}` de la
+- Si se modifica la contracción o los enlaces, hay que volver a pasar las pruebas de `tests\`.
+- Límite conocido: el emparejado de llaves es por texto. Si se teclea una `{` al final de una
+  línea dentro de una región existente y aún sin su `}`, esa `{` se empareja con la `}` de la
   región y la región original deja de plegarse hasta que se cierre la nueva.
 
 ## Reconstruir `npp-portable\`
@@ -155,13 +271,19 @@ extraída en `npp-portable\`. Está en `.gitignore`.
 ## Estructura
 
 - `src\Stdoer.cpp` — plugin: menú y puntos de entrada de plugin (propio).
-- `src\StdoerLexer.cxx` — puntos de entrada del lexer externo y la capa sobre Python (propio).
+- `src\StdoerLexer.cxx` — puntos de entrada del lexer externo, la capa sobre Python y el
+  documento sombra (propio).
 - `src\Llaves.h`, `src\Llaves.cpp` — reglas de `{ }`, sin depender de Scintilla (propio).
+- `src\Enlaces.h`, `src\Enlaces.cpp` — analizador de enlaces, clasificación de archivos y
+  estado compartido, sin depender de Scintilla (propio).
+- `src\EnlacesUI.h`, `src\EnlacesUI.cpp` — estilos de la vista, mostrar la ruta, recuadro,
+  clic, apertura y aviso tras «Reemplazar todo» (propio).
 - `config\Stdoer.xml` — registro del lexer en Notepad++.
 - `third_party\plugintemplate\` — cabeceras de interfaz de plugins (GPL v2+, sin
   modificar). `third_party\lexilla\` — Lexilla 5.4.5 (HPND, sin modificar). Origen y
   licencias en `third_party\ORIGEN.md`.
 - `compilar.cmd`, `instalar.cmd` — compilar e instalar en el portátil.
-- `tests\` — `comparar-plegado.ps1`, `verificar-llaves.ps1`, `editar-llaves.ps1`,
-  `abrir-lado-a-lado.ps1`, y los casos inventados `casos\` y `llaves\`.
-- `build\` — salida de compilación; `pruebas\` — copias personales. Ambas fuera del git.
+- `tests\` — los scripts de prueba, `herramientas-npp.ps1` (ayudantes), los casos inventados
+  `casos\`, `llaves\`, `enlaces\`, los archivos de prueba `objetivos\` y `unit\`.
+- `build\` — salida de compilación y de pruebas; `pruebas\` — copias personales y demos.
+  Ambas fuera del git.

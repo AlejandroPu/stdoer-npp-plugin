@@ -16,6 +16,7 @@ namespace Enlaces
 
 		std::atomic<long long> g_reveladoIni{-1};
 		std::atomic<long long> g_reveladoFin{-1};
+		std::vector<std::pair<long long, long long>> g_expuestos;  // solo se usa desde el hilo de la interfaz
 
 		// Archivos que se abren en Notepad++ (diseño: "Qué se abre dónde").
 		const wchar_t* const kTexto[] = {L".stdoer", L".py", L".txt", L".md", L".js", L".json",
@@ -117,11 +118,21 @@ namespace Enlaces
 		fin = g_reveladoFin;
 	}
 
+	void FijarExpuestos(const std::vector<std::pair<long long, long long>>& zonas)
+	{
+		g_expuestos = zonas;
+	}
+
 	int EstiloDeRuta(const Enlace& e, long long base)
 	{
 		long long ini = -1, fin = -1;
 		LeerRevelado(ini, fin);
-		return RutaTocada(e, base, ini, fin) ? kEstiloRutaVisible : kEstiloRutaOculta;
+		if (RutaTocada(e, base, ini, fin))
+			return kEstiloRutaVisible;
+		for (const auto& z : g_expuestos)
+			if (RutaTocada(e, base, z.first, z.second))
+				return kEstiloRutaVisible;
+		return kEstiloRutaOculta;
 	}
 
 	std::wstring ExtensionDe(const std::wstring& ruta)
