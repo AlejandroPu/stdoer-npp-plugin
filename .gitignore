@@ -1,0 +1,21 @@
+﻿# Copia portátil de Notepad++ (se regenera desde la release oficial)
+npp-portable/
+
+# Salidas de compilación
+build/
+out/
+bin/
+obj/
+x64/
+Debug/
+Release/
+*.obj
+*.o
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.dll
+*.exe
+CMakeFiles/
+CMakeCache.txt
