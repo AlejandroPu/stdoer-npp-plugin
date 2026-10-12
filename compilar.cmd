@@ -25,7 +25,7 @@ if errorlevel 1 ( echo COMPILACION FALLIDA & exit /b 1 )
 cl %COMUN% /W3 /D_CRT_SECURE_NO_WARNINGS /DSCI_LEXER /I %LX%\scintilla_include /I %LX%\include /I %LX%\lexlib /Fo:build\obj\ %LX%\lexers\LexPython.cxx %LX%\lexlib\Accessor.cxx %LX%\lexlib\CharacterCategory.cxx %LX%\lexlib\CharacterSet.cxx %LX%\lexlib\DefaultLexer.cxx %LX%\lexlib\InList.cxx %LX%\lexlib\LexAccessor.cxx %LX%\lexlib\LexerBase.cxx %LX%\lexlib\LexerModule.cxx %LX%\lexlib\LexerSimple.cxx %LX%\lexlib\PropSetSimple.cxx %LX%\lexlib\StyleContext.cxx %LX%\lexlib\WordList.cxx
 if errorlevel 1 ( echo COMPILACION FALLIDA & exit /b 1 )
 
-link /nologo /DLL /OUT:build\Stdoer.dll build\obj\*.obj user32.lib shell32.lib shlwapi.lib
+link /nologo /DLL /OUT:build\Stdoer.dll build\obj\*.obj user32.lib shell32.lib shlwapi.lib comctl32.lib
 if errorlevel 1 ( echo ENLACE FALLIDO & exit /b 1 )
 del /q build\Stdoer.exp build\Stdoer.lib 2>nul
 echo OK: build\Stdoer.dll

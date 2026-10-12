@@ -3,14 +3,17 @@
 Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archivos
 `.stdoer`. Diseño completo en el proyecto de planeación: `diseno/lenguaje-notepad.md`.
 
-**Estado: 0.4.0.** Hace tres cosas:
+**Estado: 0.5.0.** Hace estas cosas:
 
 - Menú *Plugins → Stdoer → Acerca de Stdoer*.
-- **Lexer externo `stdoer`**, asociado a la extensión `.stdoer`, sin colores:
+- **Lexer externo `stdoer`**, asociado a la extensión `.stdoer`, sin colores propios (usa los
+  del tema activo de Notepad++, claro, oscuro o el que sea):
   - contracción por sangría idéntica a la de los `.py`;
   - **contracción con `{ }`** (reglas abajo).
 - **Enlaces `__link[ruta]`**: ruta oculta, recuadro al pasar el mouse y clic que abre
-  (reglas abajo). Aún no hay menú del clic derecho (activar/desactivar).
+  (reglas abajo). Las direcciones `http://` y `https://` se abren en el navegador.
+- **Menú del clic derecho sobre un enlace**: Abrir, Abrir carpeta contenedora, Desactivar
+  enlace (sobre `_link[...]`: Activar enlace). Fuera de un enlace, el menú normal.
 
 ## Contracción con `{ }`
 
@@ -64,7 +67,38 @@ Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archiv
   una ruta distinta, **muestra esos enlaces** y pone una anotación bajo la línea («Se cambió la
   ruta de este enlace sin que se viera... Ctrl+Z deshace»). Se quita al siguiente cambio del
   texto o al cambiar de documento. Ver «Límites conocidos».
-- El plugin **no escribe nunca en el documento**: solo cambia estilos y anotaciones.
+- **Direcciones web:** `__link[https://...]` o `__link[http://...]` se abre en el navegador
+  predeterminado. ⛔ **Solo `http` y `https`.** Cualquier otro esquema (`javascript:`, `file:`,
+  `ms-settings:`, `mailto:`, `ftp:`, `steam:`, `shell:`, ...) **nunca se abre**, tampoco desde
+  el menú: Windows podría asociarlo a un programa que ejecute algo. Una dirección es válida si
+  es `http(s)://` + algo (con servidor), sin espacios, caracteres de control, ni `"` `<` `>` `^`
+  `` ` `` `\`, y de menos de 2048 caracteres; si no, se trata como esquema rechazado. Un
+  esquema son 2 o más caracteres (`C:` es una unidad, no un esquema). El recuadro muestra la
+  dirección tal cual (sin tocar la red, no se comprueba si existe) o dice «no se abre: solo
+  se abren direcciones http y https». Reglas de ocultar y de mostrar al tocar, las mismas.
+- **Menú del clic derecho** (el plugin intercepta `WM_CONTEXTMENU` en las dos vistas de
+  Scintilla; si no hay enlace bajo el mouse, el mensaje sigue y sale el menú normal de
+  Notepad++; con la tecla Menú / Mayús+F10 se usa el cursor de texto):
+  - sobre `__link[...]` (cualquier carácter del enlace, de `_` a `]`): **Abrir** (en gris si
+    no se puede: ruta relativa o inexistente, esquema rechazado), **Abrir carpeta
+    contenedora** (solo rutas; si el archivo no existe pero su carpeta sí, abre la carpeta;
+    en gris si es relativa), **Desactivar enlace**;
+  - sobre `_link[...]` (un solo `_` que no sigue a otra letra, cifra ni `_`, para que
+    `mi_link[0]` no cuente): **Activar enlace**;
+  - **Abrir** sigue las mismas reglas que el clic; nunca ejecuta nada;
+  - **Activar / Desactivar** agregan o quitan un `_` y son **lo único que el plugin escribe en
+    el documento**: una sola acción de deshacer (un Ctrl+Z), solo a pedido, y solo si el texto
+    sigue siendo el esperado; en gris con el documento de solo lectura. Límite: un enlace
+    pegado a una letra (`ver__link[x]`) se puede desactivar pero su `_link[x]` ya no cuenta
+    como «desactivado» para el menú (por la regla de la letra de antes).
+- Salvo Activar / Desactivar, el plugin **no escribe nunca en el documento**: solo cambia
+  estilos y anotaciones.
+- **Colores:** `config\Stdoer.xml` no declara ningún estilo. (En 0.4.0 declaraba un estilo
+  `DEFAULT` sin colores y Notepad++ le ponía fondo blanco: en modo oscuro, la sangría y el fin
+  de cada línea se veían blancos.) El texto toma los colores del tema; la ruta visible
+  (estilo 51) se pinta a medio camino entre el color de texto y el de fondo del tema; el
+  color de `link[]` al pasar el mouse es un azul claro sobre fondos oscuros y uno oscuro
+  sobre claros. Se recalculan si el tema cambia.
 - Estilos de Scintilla usados: 50 ruta oculta, 51 ruta visible, 52 `link[` y `]` (zona
   clicable, *hotspot*). Se aplican solo mientras el documento activo es `.stdoer` y se
   devuelven a la normalidad al salir de él (otro lexer podría usar esos números). Notepad++
@@ -83,8 +117,12 @@ Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archiv
 - El texto de la ruta cuenta para Buscar (un hallazgo dentro de una ruta oculta se muestra
   al seleccionarse, por la regla de arriba).
 - El recuadro depende del evento de «mouse detenido» de Scintilla (500 ms); la lógica se
-  probó por mensaje directo al plugin, pero el evento real con el mouse real queda para
-  prueba manual.
+  probó por mensaje directo al plugin y el usuario confirmó que aparece con el mouse real
+  (2026-10-12).
+- El menú se probó con el clic derecho «de verdad» a nivel de mensaje (`WM_CONTEXTMENU` →
+  menú emergente real → opción elegida con el teclado); un clic físico del mouse lo hace
+  igual, pero queda para prueba manual.
+- No se probó en la vista secundaria de Notepad++ (el plugin engancha las dos).
 
 ## Requisitos
 
@@ -212,6 +250,34 @@ real, Deshacer/Rehacer. Criterio: ninguna acción cambia la ruta oculta sin que 
 
 El ocultamiento sobrevive a cambiar de pestaña, de lenguaje y a reiniciar los estilos.
 
+```
+.\tests\probar-temas.ps1
+```
+
+Colores del tema: abre el portátil con 8 configuraciones (claro, modo oscuro con dos temas,
+Zenburn, Monokai, Obsidian, Solarized-light, Hello Kitty) y luego **cambia de tema en caliente**
+desde el Configurador de estilos con el documento abierto. En cada caso **mide** (no mira)
+que el fondo y el texto de todos los estilos usados sean los del tema, que la ruta visible sea
+el punto medio y que el color al pasar el mouse contraste. Guarda `npp-portable\config.xml` en
+`build\config-original.xml` y lo restaura siempre.
+
+```
+.\tests\probar-menu.ps1
+```
+
+Menú del clic derecho con el camino real (`WM_CONTEXTMENU`, menú emergente de verdad leído
+con `MN_GETHMENU`, opción elegida con el teclado): opciones según el tipo de enlace, menú
+normal fuera de un enlace, cada opción, Activar/Desactivar con un solo Deshacer, solo lectura
+y menú desde el teclado.
+
+```
+.\tests\probar-web.ps1
+```
+
+Direcciones web y esquemas: ~70 casos (http/https que se abren; `javascript:`, `file:`,
+`ms-settings:`, direcciones mal formadas, con caracteres peligrosos o demasiado largas, que
+no). Con `STDOER_SIN_SHELL`: ninguna abre nada de verdad.
+
 `pruebas\` está en `.gitignore`: ahí van copias de documentos personales. Nada personal
 va en archivos versionados (ni rutas ni nombres de mis documentos). Los archivos de
 `tests\objetivos\` son inventados; los scripts que hacen enlaces a ellos calculan la ruta
@@ -219,7 +285,8 @@ completa al ejecutarse y escriben el resultado en `build\` o `pruebas\`.
 
 Variables de entorno de prueba (solo las pone el script de pruebas): `STDOER_LOG=<archivo>`
 (el plugin anota lo que hace) y `STDOER_SIN_SHELL=1` (no llama a Windows; además habilita el
-mensaje privado que usa el test del recuadro).
+mensaje privado `NPPM_MSGTOPLUGIN` que usan los tests: 1 = recuadro, 2 = anotar las opciones
+del menú, 3 = clic izquierdo, 11..14 = elegir Abrir / Carpeta / Desactivar / Activar).
 
 `tests\unit\correr.cmd` compila y corre pruebas unitarias del analizador de enlaces; hace un
 `.exe` suelto que algunos antivirus marcan por heurística: no se usa en el flujo normal (las

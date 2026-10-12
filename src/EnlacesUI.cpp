@@ -3,6 +3,8 @@
 #define NOMINMAX
 #include "EnlacesUI.h"
 
+#include <windowsx.h>
+#include <commctrl.h>
 #include <shellapi.h>
 #include <shlwapi.h>
 
@@ -103,6 +105,27 @@ namespace
 
 	// --- estilos de la vista ---
 
+	// Colores que salen del tema activo (el estilo por defecto de Scintilla es el del tema de
+	// Notepad++), no fijos: así el modo oscuro y cualquier tema se respetan.
+	COLORREF Mezcla(COLORREF a, COLORREF b)
+	{
+		return RGB((GetRValue(a) + GetRValue(b)) / 2, (GetGValue(a) + GetGValue(b)) / 2, (GetBValue(a) + GetBValue(b)) / 2);
+	}
+
+	// La ruta visible va a medio camino entre el color del texto y el del fondo: se distingue
+	// del resto sin dejar de verse en ningún tema.
+	COLORREF ColorRutaVisible(HWND h)
+	{
+		return Mezcla(static_cast<COLORREF>(Sci(h, SCI_STYLEGETFORE, STYLE_DEFAULT)), static_cast<COLORREF>(Sci(h, SCI_STYLEGETBACK, STYLE_DEFAULT)));
+	}
+
+	// Color de "link[]" al pasar el mouse: azul claro sobre fondos oscuros y azul oscuro sobre claros.
+	COLORREF ColorAlPasar(HWND h)
+	{
+		const COLORREF fondo = static_cast<COLORREF>(Sci(h, SCI_STYLEGETBACK, STYLE_DEFAULT));
+		const int brillo = (GetRValue(fondo) * 299 + GetGValue(fondo) * 587 + GetBValue(fondo) * 114) / 1000;
+		return brillo < 128 ? RGB(0x66, 0xB3, 0xFF) : RGB(0x00, 0x66, 0xCC);
+	}
 	// La ruta (estilo 50) es invisible y no modificable: ni Retroceso, Suprimir, escribir sobre
 	// una selección, cortar o pegar la tocan. Mientras el cursor o la selección la tocan se
 	// muestra (estilo 51) y entonces sí se puede editar, a la vista.
@@ -112,9 +135,9 @@ namespace
 		Sci(h, SCI_STYLESETCHANGEABLE, Enlaces::kEstiloRutaOculta, 0);
 		Sci(h, SCI_STYLESETVISIBLE, Enlaces::kEstiloRutaVisible, 1);
 		Sci(h, SCI_STYLESETCHANGEABLE, Enlaces::kEstiloRutaVisible, 1);
-		Sci(h, SCI_STYLESETFORE, Enlaces::kEstiloRutaVisible, RGB(0x80, 0x80, 0x80));
+		Sci(h, SCI_STYLESETFORE, Enlaces::kEstiloRutaVisible, ColorRutaVisible(h));
 		Sci(h, SCI_STYLESETHOTSPOT, Enlaces::kEstiloEnlace, 1);
-		Sci(h, SCI_SETHOTSPOTACTIVEFORE, 1, RGB(0x00, 0x66, 0xCC));
+		Sci(h, SCI_SETHOTSPOTACTIVEFORE, 1, ColorAlPasar(h));
 		Sci(h, SCI_SETHOTSPOTACTIVEUNDERLINE, 1, 0);
 		Sci(h, SCI_SETHOTSPOTSINGLELINE, 1, 0);
 		Sci(h, SCI_SETMOUSEDWELLTIME, 500, 0);
@@ -152,7 +175,8 @@ namespace
 		{
 			RevisarDocumentoActivo(h, idx);
 			if (!g_vistas[idx].aplicado || Sci(h, SCI_STYLEGETVISIBLE, Enlaces::kEstiloRutaOculta) != 0 ||
-				Sci(h, SCI_STYLEGETCHANGEABLE, Enlaces::kEstiloRutaOculta) != 0)
+				Sci(h, SCI_STYLEGETCHANGEABLE, Enlaces::kEstiloRutaOculta) != 0 ||
+				static_cast<COLORREF>(Sci(h, SCI_STYLEGETFORE, Enlaces::kEstiloRutaVisible)) != ColorRutaVisible(h))
 				AplicarEstilos(h, idx);
 		}
 		else if (g_vistas[idx].aplicado)
@@ -526,15 +550,25 @@ namespace
 		else
 		{
 			const std::wstring ruta = ARuta(h, bytes);
-			if (!Enlaces::EsRutaAbsoluta(ruta))
-				texto += "\n(ruta relativa: no se abre)";
-			else
+			switch (Enlaces::ClasificarDestino(ruta))
 			{
-				const Existencia ex = Comprobar(ruta, 300);
-				if (ex.estado == Estado::NoExiste)
-					texto += "\n(no existe)";
-				else if (ex.estado == Estado::SinRespuesta)
-					texto += "\n(sin respuesta: no se pudo comprobar si existe)";
+			case Enlaces::TipoDestino::Web:
+				break;  // la dirección tal cual: no se toca la red para comprobarla
+			case Enlaces::TipoDestino::Rechazado:
+				texto += "\n(no se abre: solo se abren direcciones http y https)";
+				break;
+			case Enlaces::TipoDestino::Ruta:
+				if (!Enlaces::EsRutaAbsoluta(ruta))
+					texto += "\n(ruta relativa: no se abre)";
+				else
+				{
+					const Existencia ex = Comprobar(ruta, 300);
+					if (ex.estado == Estado::NoExiste)
+						texto += "\n(no existe)";
+					else if (ex.estado == Estado::SinRespuesta)
+						texto += "\n(sin respuesta: no se pudo comprobar si existe)";
+				}
+				break;
 			}
 		}
 		Sci(h, SCI_CALLTIPSHOW, static_cast<WPARAM>(linea.inicio + static_cast<long long>(e.inicio)), reinterpret_cast<LPARAM>(texto.c_str()));
@@ -559,6 +593,8 @@ namespace
 
 	void MostrarEnCarpeta(const std::wstring& ruta)
 	{
+		if (ruta.find(L'"') != std::wstring::npos)
+			return;  // una ruta de Windows no lleva comillas: no se pasa a explorer.exe
 		const std::wstring args = L"/select,\"" + ruta + L"\"";
 		if (!SinShell())
 			::ShellExecuteW(nullptr, L"open", L"explorer.exe", args.c_str(), nullptr, SW_SHOWNORMAL);
@@ -629,6 +665,59 @@ namespace
 		}
 	}
 
+	// Carpeta contenedora del enlace: si el archivo existe se muestra seleccionado; si no, pero su
+	// carpeta sí, se abre esa carpeta. Nunca ejecuta nada.
+	void AbrirCarpetaContenedora(HWND h, const std::wstring& ruta)
+	{
+		if (!Enlaces::EsRutaAbsoluta(ruta) || ruta.find(L'"') != std::wstring::npos)
+		{
+			Log("abrir: carpeta contenedora de una ruta no valida, no se hace nada: %ls", ruta.c_str());
+			return;
+		}
+		const Existencia ex = Comprobar(ruta, 1000);
+		if (ex.estado == Estado::Existe)
+		{
+			MostrarEnCarpeta(ruta);
+			return;
+		}
+		const std::size_t barra = ruta.find_last_of(L"\\/");
+		if (barra == std::wstring::npos || barra < 3)
+		{
+			Log("abrir: carpeta contenedora de %ls: no hay carpeta que abrir", ruta.c_str());
+			return;
+		}
+		const std::wstring carpeta = ruta.substr(0, barra);
+		const Existencia ec = Comprobar(carpeta, 1000);
+		if (ec.estado == Estado::Existe && ec.carpeta)
+		{
+			if (!SinShell())
+				::ShellExecuteW(h, L"open", carpeta.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+			Log("abrir: carpeta %ls (el archivo no existe)", carpeta.c_str());
+		}
+		else
+			Log("abrir: carpeta contenedora de %ls: la carpeta tampoco existe, no se hace nada", ruta.c_str());
+	}
+
+	// Abre lo que dice un enlace. ⛔ Solo se abren direcciones http y https (en el navegador) y
+	// rutas con las reglas de siempre; cualquier otro esquema no se abre.
+	void AbrirDestino(HWND h, const std::wstring& texto)
+	{
+		switch (Enlaces::ClasificarDestino(texto))
+		{
+		case Enlaces::TipoDestino::Web:
+			if (!SinShell())
+				::ShellExecuteW(h, L"open", texto.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+			Log("abrir: navegador %ls", texto.c_str());
+			break;
+		case Enlaces::TipoDestino::Rechazado:
+			Log("abrir: esquema o direccion no permitidos, no se hace nada: %ls", texto.c_str());
+			break;
+		case Enlaces::TipoDestino::Ruta:
+			AbrirRuta(h, texto);
+			break;
+		}
+	}
+
 	void ClicEnEnlace(HWND h, long long pos, int modificadores)
 	{
 		Log("clic en zona activa pos=%lld modificadores=%d", pos, modificadores);
@@ -642,7 +731,246 @@ namespace
 			return;
 		}
 		OcultarRecuadro(h);
-		AbrirRuta(h, ARuta(h, RutaEnBytes(linea, e)));
+		AbrirDestino(h, ARuta(h, RutaEnBytes(linea, e)));
+	}
+
+	// === menú del clic derecho ===
+
+	// Un enlace bajo el mouse (o el cursor): activo (__link[) o desactivado (_link[).
+	struct EnlaceMenu
+	{
+		bool activo = false;
+		LineaConEnlaces linea;
+		Enlaces::Enlace e;
+		std::wstring destino;            // ruta o dirección, tal como está escrita
+		Enlaces::TipoDestino tipo = Enlaces::TipoDestino::Ruta;
+	};
+
+	enum IdMenu { kMenuAbrir = 1, kMenuCarpeta, kMenuDesactivar, kMenuActivar };
+
+	struct Opcion
+	{
+		int id;
+		const wchar_t* texto;
+		bool habilitada;
+	};
+
+	// ¿Hay un enlace (activo o desactivado) que contenga el carácter en `pos`?
+	bool BuscarEnlaceMenu(HWND h, long long pos, EnlaceMenu& r)
+	{
+		if (pos < 0)
+			return false;
+		const long long l = Sci(h, SCI_LINEFROMPOSITION, static_cast<WPARAM>(pos));
+		r.linea = LeerLinea(h, l);
+		const long long rel = pos - r.linea.inicio;
+		const auto contiene = [rel](const Enlaces::Enlace& e) {
+			return rel >= static_cast<long long>(e.inicio) && rel <= static_cast<long long>(e.cierra);
+		};
+		bool hallado = false;
+		for (const auto& e : r.linea.enlaces)
+			if (contiene(e))
+			{
+				r.activo = true;
+				r.e = e;
+				hallado = true;
+				break;
+			}
+		if (!hallado)
+			for (const auto& e : Enlaces::BuscarDesactivados(r.linea.texto.data(), r.linea.texto.size()))
+				if (contiene(e))
+				{
+					r.activo = false;
+					r.e = e;
+					hallado = true;
+					break;
+				}
+		if (!hallado)
+			return false;
+		r.destino = ARuta(h, RutaEnBytes(r.linea, r.e));
+		r.tipo = Enlaces::ClasificarDestino(r.destino);
+		return true;
+	}
+
+	// Las opciones del menú para este enlace (también las usa el modo de pruebas).
+	std::vector<Opcion> OpcionesDe(HWND h, const EnlaceMenu& m)
+	{
+		std::vector<Opcion> o;
+		const bool editable = Sci(h, SCI_GETREADONLY) == 0;
+		if (!m.activo)
+		{
+			o.push_back({kMenuActivar, L"Activar enlace", editable});
+			return o;
+		}
+		bool puedeAbrir = false;
+		switch (m.tipo)
+		{
+		case Enlaces::TipoDestino::Web:
+			puedeAbrir = true;
+			break;
+		case Enlaces::TipoDestino::Rechazado:
+			break;
+		case Enlaces::TipoDestino::Ruta:
+			puedeAbrir = Enlaces::EsRutaAbsoluta(m.destino) && Comprobar(m.destino, 300).estado != Estado::NoExiste;
+			break;
+		}
+		o.push_back({kMenuAbrir, L"Abrir", puedeAbrir});
+		if (m.tipo == Enlaces::TipoDestino::Ruta)
+			o.push_back({kMenuCarpeta, L"Abrir carpeta contenedora", Enlaces::EsRutaAbsoluta(m.destino)});
+		o.push_back({kMenuDesactivar, L"Desactivar enlace", editable});
+		return o;
+	}
+
+	// Activar / Desactivar son lo único que escribe el plugin: un "_", como una sola acción de
+	// deshacer. Antes se comprueba que el texto sigue siendo el esperado.
+	void CambiarGuion(HWND h, const EnlaceMenu& m, bool activar)
+	{
+		if (Sci(h, SCI_GETREADONLY) != 0)
+			return;
+		const long long pos = m.linea.inicio + static_cast<long long>(m.e.inicio);
+		const std::string ahora = TextoRango(h, pos, pos + (activar ? 6 : 7));
+		if (activar ? ahora != "_link[" : ahora != "__link[")
+		{
+			Log("menu: el texto ya no es el esperado, no se cambia nada");
+			return;
+		}
+		Sci(h, SCI_BEGINUNDOACTION);
+		if (activar)
+			Sci(h, SCI_INSERTTEXT, static_cast<WPARAM>(pos), reinterpret_cast<LPARAM>("_"));
+		else
+			Sci(h, SCI_DELETERANGE, static_cast<WPARAM>(pos), 1);
+		Sci(h, SCI_ENDUNDOACTION);
+		Log("menu: enlace %s en la posicion %lld", activar ? "activado" : "desactivado", pos);
+	}
+
+	void EjecutarOpcion(HWND h, int id, const EnlaceMenu& m)
+	{
+		OcultarRecuadro(h);
+		bool permitida = false;
+		for (const auto& o : OpcionesDe(h, m))
+			if (o.id == id && o.habilitada)
+				permitida = true;
+		if (!permitida)
+		{
+			Log("menu: la opcion %d no esta disponible para este enlace, no se hace nada", id);
+			return;
+		}
+		switch (id)
+		{
+		case kMenuAbrir:
+			AbrirDestino(h, m.destino);
+			break;
+		case kMenuCarpeta:
+			AbrirCarpetaContenedora(h, m.destino);
+			break;
+		case kMenuDesactivar:
+			CambiarGuion(h, m, false);
+			break;
+		case kMenuActivar:
+			CambiarGuion(h, m, true);
+			break;
+		default:
+			break;
+		}
+	}
+
+	void RegistrarOpciones(const std::vector<Opcion>& o)
+	{
+		std::string s;
+		for (const auto& x : o)
+		{
+			char buf[128];
+			std::snprintf(buf, sizeof(buf), "%s%ls%s", s.empty() ? "" : " | ", x.texto, x.habilitada ? "" : " (gris)");
+			s += buf;
+		}
+		Log("menu: %s", s.c_str());
+	}
+
+	// WM_CONTEXTMENU sobre la vista. Devuelve true si se atendió (había un enlace); si no, el
+	// mensaje sigue su camino y Notepad++ muestra su menú normal.
+	bool MenuContextual(HWND h, LPARAM lParam)
+	{
+		if (!EsStdoer(h))
+			return false;
+		long long pos;
+		POINT pantalla;
+		if (GET_X_LPARAM(lParam) == -1 && GET_Y_LPARAM(lParam) == -1)
+		{
+			// Desde el teclado (tecla Menú / Mayús+F10): en el cursor de texto.
+			pos = Sci(h, SCI_GETCURRENTPOS);
+			POINT p = {static_cast<LONG>(Sci(h, SCI_POINTXFROMPOSITION, 0, static_cast<LPARAM>(pos))),
+					   static_cast<LONG>(Sci(h, SCI_POINTYFROMPOSITION, 0, static_cast<LPARAM>(pos)))};
+			::ClientToScreen(h, &p);
+			pantalla = p;
+		}
+		else
+		{
+			pantalla.x = GET_X_LPARAM(lParam);
+			pantalla.y = GET_Y_LPARAM(lParam);
+			POINT c = pantalla;
+			::ScreenToClient(h, &c);
+			// Notepad++ es consciente de DPI: los puntos de Scintilla son los del área de cliente.
+			pos = Sci(h, SCI_CHARPOSITIONFROMPOINTCLOSE, static_cast<WPARAM>(c.x), static_cast<LPARAM>(c.y));
+			Log("menu: pantalla=(%ld,%ld) cliente=(%ld,%ld) -> pos=%lld", pantalla.x, pantalla.y, c.x, c.y, pos);
+		}
+		EnlaceMenu m;
+		if (!BuscarEnlaceMenu(h, pos, m))
+		{
+			Log("menu: sin enlace en pos=%lld: menu normal", pos);
+			return false;
+		}
+		const std::vector<Opcion> opciones = OpcionesDe(h, m);
+		RegistrarOpciones(opciones);
+		HMENU menu = ::CreatePopupMenu();
+		if (menu == nullptr)
+			return false;
+		for (const auto& o : opciones)
+			::AppendMenuW(menu, MF_STRING | (o.habilitada ? MF_ENABLED : MF_GRAYED), static_cast<UINT_PTR>(o.id), o.texto);
+		OcultarRecuadro(h);
+		const int elegido = ::TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY, pantalla.x, pantalla.y, 0, g_npp._nppHandle, nullptr);
+		::DestroyMenu(menu);
+		Log("menu: elegido %d", elegido);
+		if (elegido != 0)
+		{
+			// El documento pudo cambiar mientras el menú estaba abierto: se vuelve a buscar el enlace.
+			EnlaceMenu otra;
+			if (BuscarEnlaceMenu(h, pos, otra) && otra.activo == m.activo && otra.destino == m.destino)
+				EjecutarOpcion(h, elegido, otra);
+			else
+				Log("menu: el enlace cambio mientras el menu estaba abierto, no se hace nada");
+		}
+		return true;
+	}
+
+	// --- el menú escucha en las dos vistas de Scintilla ---
+
+	LRESULT CALLBACK ProcVista(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR)
+	{
+		if (m == WM_CONTEXTMENU && MenuContextual(h, l))
+			return 0;
+		return ::DefSubclassProc(h, m, w, l);
+	}
+	constexpr UINT_PTR kIdSubclase = 0x57D0E5;
+	bool g_subclasificadas = false;
+
+	void InstalarMenu()
+	{
+		if (g_subclasificadas)
+			return;
+		for (HWND h : {g_npp._scintillaMainHandle, g_npp._scintillaSecondHandle})
+			if (h != nullptr)
+				::SetWindowSubclass(h, ProcVista, kIdSubclase, 0);
+		g_subclasificadas = true;
+		Log("menu instalado");
+	}
+
+	void QuitarMenu()
+	{
+		if (!g_subclasificadas)
+			return;
+		for (HWND h : {g_npp._scintillaMainHandle, g_npp._scintillaSecondHandle})
+			if (h != nullptr)
+				::RemoveWindowSubclass(h, ProcVista, kIdSubclase);
+		g_subclasificadas = false;
 	}
 }
 
@@ -661,6 +989,24 @@ namespace EnlacesUI
 			MostrarRecuadro(h, *static_cast<const long long*>(ci->info));
 			return TRUE;
 		}
+		// 3 = lo mismo que un clic izquierdo (sin modificadores) en esa posición
+		if (ci->internalMsg == 3 && idx >= 0 && g_vistas[idx].aplicado)
+		{
+			ClicEnEnlace(h, *static_cast<const long long*>(ci->info), 0);
+			return TRUE;
+		}
+		// 2 = anotar las opciones del menú de ese enlace; 11..14 = elegir esa opción (Abrir, Carpeta, Desactivar, Activar)
+		if ((ci->internalMsg == 2 || (ci->internalMsg >= 11 && ci->internalMsg <= 14)) && idx >= 0 && g_vistas[idx].aplicado)
+		{
+			EnlaceMenu m;
+			if (!BuscarEnlaceMenu(h, *static_cast<const long long*>(ci->info), m))
+				return FALSE;
+			if (ci->internalMsg == 2)
+				RegistrarOpciones(OpcionesDe(h, m));
+			else
+				EjecutarOpcion(h, ci->internalMsg - 10, m);
+			return TRUE;
+		}
 		return FALSE;
 	}
 
@@ -675,6 +1021,12 @@ namespace EnlacesUI
 		switch (n->nmhdr.code)
 		{
 		case NPPN_READY:
+			InstalarMenu();
+			RevisarAmbasVistas();
+			break;
+		case NPPN_SHUTDOWN:
+			QuitarMenu();
+			break;
 		case NPPN_BUFFERACTIVATED:
 		case NPPN_LANGCHANGED:
 		case NPPN_WORDSTYLESUPDATED:

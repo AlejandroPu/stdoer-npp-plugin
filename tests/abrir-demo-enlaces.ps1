@@ -12,9 +12,11 @@ $pruebas = Join-Path $raiz 'pruebas'
 if (-not (Test-Path $pruebas)) { New-Item -ItemType Directory $pruebas | Out-Null }
 
 $demo = @"
-Demostración de enlaces (stdoer 0.4.0)
+Demostración de enlaces (stdoer 0.5.0)
 Todo esto es inventado: los enlaces apuntan a archivos de prueba dentro de la carpeta del plugin.
 Pasa el mouse sobre un enlace (recuadro con la ruta) y haz clic sobre «link[]» para abrirlo.
+Clic DERECHO sobre un enlace: menú con Abrir, Abrir carpeta contenedora y Desactivar enlace
+(sobre uno desactivado, Activar enlace). Ctrl+Z deshace cada cambio con un solo paso.
 
 1. Texto: se abre en una pestaña de Notepad++
    __link[$obj\texto.txt]
@@ -41,6 +43,14 @@ Pasa el mouse sobre un enlace (recuadro con la ruta) y haz clic sobre «link[]»
    Texto de la región.
    __link[$obj\texto.txt]
 }
+13. Dirección web (se abre en el navegador; el recuadro muestra la dirección sin tocar la red)
+   __link[https://notepad-plus-plus.org/]
+14. Otra dirección web, con http
+   __link[http://example.com/]
+15. Esquema NO permitido (solo http y https se abren): el recuadro lo dice y el clic no hace nada
+   __link[javascript:alert(1)]
+16. Otro esquema no permitido (protocolo de un programa de Windows)
+   __link[ms-settings:network]
 
 Para editar una ruta: borra un _ (queda _link[...] y la ruta se ve), edítala y vuelve a escribir el _.
 Con el cursor dentro de los corchetes, o con una selección que toque el enlace, la ruta se muestra sola.

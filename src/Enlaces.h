@@ -39,6 +39,11 @@ namespace Enlaces
 	// Todos los enlaces de una línea (sin su salto de línea), en orden.
 	std::vector<Enlace> Buscar(const char* texto, std::size_t largo);
 
+	// Enlaces desactivados de una línea: "_link[" con UN solo "_" que no sigue a otra letra,
+	// cifra o "_" (así "mi_link[0]" no se confunde con uno). `inicio` es ese "_" (abre y
+	// cierra como en un enlace). Sirven para el menú "Activar enlace".
+	std::vector<Enlace> BuscarDesactivados(const char* texto, std::size_t largo);
+
 	// ¿El enlace tiene la ruta "tocada" por el intervalo [selIni, selFin] (posiciones de
 	// cursor, extremos incluidos)? Se usa para mostrar la ruta mientras se edita. `base` es
 	// la posición absoluta del primer byte de la línea. Con selIni < 0 no hay nada tocado.
@@ -69,6 +74,21 @@ namespace Enlaces
 
 	// Extensión de una ruta (con el punto, en minúsculas), o vacía.
 	std::wstring ExtensionDe(const std::wstring& ruta);
+
+	// Qué es el texto de un enlace (ya recortado).
+	enum class TipoDestino
+	{
+		Ruta,       // una ruta de archivo o carpeta (o texto sin esquema, p. ej. vacío o relativo)
+		Web,        // http:// o https:// bien formada: se abre en el navegador
+		Rechazado,  // lleva un esquema ("javascript:", "file:", "ms-settings:"...) que no sea http(s),
+		            // o una dirección http(s) mal formada: nunca se abre
+	};
+
+	// ⛔ Solo http y https. Un esquema son 2 o más caracteres (letra, luego letras, cifras, + - .)
+	// seguidos de ":"; "C:" no lo es (es una unidad). Una dirección web válida es
+	// "http(s)://" + algo, sin espacios ni caracteres de control, ni " < > ^ ` \, y de
+	// no más de 2048 caracteres (así no puede romper la línea de comandos del navegador).
+	TipoDestino ClasificarDestino(const std::wstring& texto);
 
 	// ¿La ruta es absoluta (X:\... o \\servidor\...)? Las relativas no se abren.
 	bool EsRutaAbsoluta(const std::wstring& ruta);

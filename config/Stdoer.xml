@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!-- Registro del lexer externo "stdoer" en Notepad++. Se instala en
      <Notepad++>\plugins\Config\Stdoer.xml (el nombre debe coincidir con Stdoer.dll).
-     Sin colores a propósito: solo un estilo "DEFAULT" sin colores ni fuente. -->
+     Sin estilos a propósito: si se declara un estilo "DEFAULT" sin colores, Notepad++ le pone
+     fondo blanco aunque el tema sea oscuro (defecto de 0.4.0). Sin estilos, todo el texto
+     toma los colores del tema activo. -->
 <NotepadPlus>
     <LexerStyles>
         <LexerType name="stdoer" desc="Stdoer" ext="stdoer">
-            <WordsStyle name="DEFAULT" styleID="0" />
         </LexerType>
     </LexerStyles>
 </NotepadPlus>

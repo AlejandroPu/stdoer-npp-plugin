@@ -1,6 +1,6 @@
 // Stdoer — plugin de Notepad++ para el lenguaje propio .stdoer
-// 0.4.0: además del menú, el lexer externo "stdoer" (ver StdoerLexer.cxx, Llaves.h y
-// Enlaces.h) y la atención de los enlaces en la ventana (EnlacesUI.cpp).
+// 0.5.0: además del menú, el lexer externo "stdoer" (ver StdoerLexer.cxx, Llaves.h y
+// Enlaces.h) y la atención de los enlaces en la ventana, con su menú del clic derecho (EnlacesUI.cpp).
 //
 // Las cabeceras de interfaz de third_party/plugintemplate son de terceros
 // (GPL v2+, ver third_party/ORIGEN.md). Este archivo es propio.
@@ -12,7 +12,7 @@
 namespace
 {
 	const wchar_t kNombre[]  = L"Stdoer";
-	const wchar_t kVersion[] = L"0.4.0";
+	const wchar_t kVersion[] = L"0.5.0";
 
 	NppData  g_npp;
 	FuncItem g_menu[1];

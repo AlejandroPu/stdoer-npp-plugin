@@ -97,6 +97,56 @@ namespace Enlaces
 		return r;
 	}
 
+	std::vector<Enlace> BuscarDesactivados(const char* texto, std::size_t largo)
+	{
+		static const char inicioDesactivado[] = "_link[";
+		constexpr std::size_t n = sizeof(inicioDesactivado) - 1;
+		std::vector<Enlace> r;
+		std::size_t desde = 0;
+		while (desde + n <= largo)
+		{
+			const char* hallado = static_cast<const char*>(memchr(texto + desde, '_', largo - desde));
+			if (hallado == nullptr)
+				break;
+			const std::size_t i = static_cast<std::size_t>(hallado - texto);
+			if (i + n > largo)
+				break;
+			bool palabraAntes = false;
+			if (i > 0)
+			{
+				const unsigned char p = static_cast<unsigned char>(texto[i - 1]);
+				palabraAntes = p == '_' || p >= 0x80 || (p >= '0' && p <= '9') || ((p | 0x20) >= 'a' && (p | 0x20) <= 'z');
+			}
+			if (palabraAntes || std::memcmp(texto + i, inicioDesactivado, n) != 0)
+			{
+				desde = i + 1;
+				continue;
+			}
+			const std::size_t abre = i + n - 1;
+			int profundidad = 1;
+			std::size_t k = abre + 1;
+			for (; k < largo; ++k)
+			{
+				if (texto[k] == '[')
+					++profundidad;
+				else if (texto[k] == ']' && --profundidad == 0)
+					break;
+			}
+			if (k < largo)
+			{
+				Enlace e;
+				e.inicio = i;
+				e.abre = abre;
+				e.cierra = k;
+				r.push_back(e);
+				desde = k + 1;
+			}
+			else
+				desde = i + 1;
+		}
+		return r;
+	}
+
 	bool RutaTocada(const Enlace& e, long long base, long long selIni, long long selFin)
 	{
 		if (selIni < 0 || selFin < selIni)
@@ -157,6 +207,38 @@ namespace Enlaces
 		if (Esta(kPeligrosas, sizeof(kPeligrosas) / sizeof(kPeligrosas[0]), ext))
 			return Destino::Carpeta;
 		return Destino::Windows;
+	}
+
+	TipoDestino ClasificarDestino(const std::wstring& texto)
+	{
+		// ¿Empieza con un esquema? letra, (letra|cifra|+|-|.)* y ":" ; con al menos 2 caracteres.
+		std::size_t i = 0;
+		if (!texto.empty() && texto[0] < 0x80 && std::iswalpha(texto[0]))
+		{
+			i = 1;
+			while (i < texto.size() && texto[i] < 0x80 &&
+				   (std::iswalnum(texto[i]) || texto[i] == L'+' || texto[i] == L'-' || texto[i] == L'.'))
+				++i;
+		}
+		if (i < 2 || i >= texto.size() || texto[i] != L':')
+			return TipoDestino::Ruta;  // sin esquema ("C:\..." tiene un solo carácter antes de ":")
+		std::wstring esquema = texto.substr(0, i);
+		std::transform(esquema.begin(), esquema.end(), esquema.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+		if (esquema != L"http" && esquema != L"https")
+			return TipoDestino::Rechazado;
+		// Dirección web: "esquema://" + al menos un carácter, sin caracteres peligrosos.
+		const std::size_t resto = i + 1;
+		if (texto.size() < resto + 3 || texto.compare(resto, 2, L"//") != 0 || texto.size() > 2048)
+			return TipoDestino::Rechazado;
+		if (texto[resto + 2] == L'/' || texto[resto + 2] == L'?' || texto[resto + 2] == L'#')
+			return TipoDestino::Rechazado;  // sin servidor
+		for (std::size_t k = resto + 2; k < texto.size(); ++k)
+		{
+			const wchar_t c = texto[k];
+			if (c <= L' ' || c == 0x7F || c == L'"' || c == L'<' || c == L'>' || c == L'^' || c == L'`' || c == L'\\')
+				return TipoDestino::Rechazado;
+		}
+		return TipoDestino::Web;
 	}
 
 	bool EsRutaAbsoluta(const std::wstring& ruta)

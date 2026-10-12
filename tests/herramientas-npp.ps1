@@ -88,6 +88,69 @@ public static class NppT {
             return true; }, IntPtr.Zero);
         return r;
     }
+    // --- menús (el de la ventana y los emergentes del propio proceso) ---
+    [DllImport("user32.dll")] public static extern IntPtr GetMenu(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr GetSubMenu(IntPtr m, int i);
+    [DllImport("user32.dll")] public static extern int GetMenuItemCount(IntPtr m);
+    [DllImport("user32.dll")] public static extern uint GetMenuItemID(IntPtr m, int i);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetMenuString(IntPtr m, uint pos, StringBuilder s, int n, uint flags);
+    [DllImport("user32.dll")] static extern uint GetMenuState(IntPtr m, uint pos, uint flags);
+    [StructLayout(LayoutKind.Sequential)] public struct PUNTO { public int x, y; }
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref PUNTO p);
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr contexto);
+    // "id|texto|estado" por línea (estado: gris / ok), con la sangría del nivel.
+    public static string ArbolMenu(IntPtr m, int nivel) {
+        var sb = new StringBuilder();
+        int n = GetMenuItemCount(m);
+        for (int i = 0; i < n; i++) {
+            var s = new StringBuilder(200); GetMenuString(m, (uint)i, s, 200, 0x400);
+            uint est = GetMenuState(m, (uint)i, 0x400);
+            IntPtr sub = GetSubMenu(m, i);
+            sb.Append(new string(' ', nivel * 2) + GetMenuItemID(m, i) + "|" + s + "|" + (((est & 3) != 0) ? "gris" : "ok") + "\n");
+            if (sub != IntPtr.Zero) sb.Append(ArbolMenu(sub, nivel + 1));
+        }
+        return sb.ToString();
+    }
+    // Menú emergente visible (clase #32768) del proceso, o cero.
+    public static IntPtr VentanaPopup(uint pid) {
+        IntPtr hallado = IntPtr.Zero;
+        EnumWindows((h, l) => {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p != pid || !IsWindowVisible(h)) return true;
+            var c = new StringBuilder(32); GetClassName(h, c, 32);
+            if (c.ToString() == "#32768") { hallado = h; return false; }
+            return true; }, IntPtr.Zero);
+        return hallado;
+    }
+    public static IntPtr MenuDePopup(IntPtr hPopup) { return SendMessage(hPopup, 0x1E1, IntPtr.Zero, IntPtr.Zero); }  // MN_GETHMENU
+    // Controles hijos de una ventana: "id|clase|texto" por línea.
+    [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
+    public static string Hijos(IntPtr padre) {
+        var sb = new StringBuilder();
+        EnumChildWindows(padre, (h, l) => {
+            var c = new StringBuilder(64); GetClassName(h, c, 64);
+            var x = new StringBuilder(120); GetWindowText(h, x, 120);
+            sb.Append(GetDlgCtrlID(h) + "|" + c + "|" + x + "|" + h.ToString() + "\n");
+            return true; }, IntPtr.Zero);
+        return sb.ToString();
+    }
+    // Control (a cualquier profundidad) con ese identificador dentro de una ventana, o cero.
+    public static IntPtr HijoPorId(IntPtr padre, int id) {
+        IntPtr hallado = IntPtr.Zero;
+        EnumChildWindows(padre, (h, l) => { if (GetDlgCtrlID(h) == id) { hallado = h; return false; } return true; }, IntPtr.Zero);
+        return hallado;
+    }
+    // Ventana de nivel superior visible del proceso con ese texto de título.
+    public static IntPtr VentanaConTitulo(uint pid, string titulo) {
+        IntPtr hallado = IntPtr.Zero;
+        EnumWindows((h, l) => {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p != pid || !IsWindowVisible(h)) return true;
+            var x = new StringBuilder(200); GetWindowText(h, x, 200);
+            if (x.ToString() == titulo) { hallado = h; return false; }
+            return true; }, IntPtr.Zero);
+        return hallado;
+    }
     static IntPtr proc = IntPtr.Zero;
     public static void Attach(IntPtr hwnd) {
         uint pid; GetWindowThreadProcessId(hwnd, out pid);
@@ -242,4 +305,51 @@ function Npp-LParamMouse([int]$x, [int]$y) {
     $f = 96.0 / $dpi
     $xs = [int][Math]::Round($x * $f); $ys = [int][Math]::Round($y * $f)
     [IntPtr](($ys -shl 16) -bor ($xs -band 0xFFFF))
+}
+
+# --- menús y clic derecho ---
+
+# Todas las órdenes del menú principal ("id|texto|estado"), para hallar un identificador por su texto.
+function Npp-ArbolMenu { [NppT]::ArbolMenu([NppT]::GetMenu($script:HNpp), 0) }
+
+# lParam de un WM_CONTEXTMENU (coordenadas de PANTALLA físicas, que es lo que recibe Notepad++, que
+# es consciente de DPI) sobre una posición del documento. Los puntos de la API de Scintilla son
+# los del área de cliente; este proceso de pruebas NO es consciente de DPI, así que durante la
+# conversión se declara consciente (por hilo) para que ClientToScreen devuelva píxeles físicos.
+# Por defecto cae 3 píxeles dentro de la celda del carácter (justo en su borde izquierdo
+# Scintilla elige el anterior).
+function Npp-LParamPantalla([int64]$pos, [int]$dx = 3, [int]$dy = 3) {
+    $p = New-Object NppT+PUNTO
+    $p.x = [int](Sci 2164 0 $pos) + $dx     # SCI_POINTXFROMPOSITION
+    $p.y = [int](Sci 2165 0 $pos) + $dy     # SCI_POINTYFROMPOSITION
+    $antes = [NppT]::SetThreadDpiAwarenessContext([IntPtr](-4))     # PER_MONITOR_AWARE_V2
+    [void][NppT]::ClientToScreen($script:VNpp, [ref]$p)
+    [void][NppT]::SetThreadDpiAwarenessContext($antes)
+    [IntPtr](([int64]($p.y -band 0xFFFF) -shl 16) -bor [int64]($p.x -band 0xFFFF))
+}
+
+# Pide el menú contextual de verdad (WM_CONTEXTMENU a la vista) y espera el emergente.
+# Devuelve las opciones ("id|texto|estado" por línea) o $null si no apareció ninguno.
+# Sin -Elegir se cierra el emergente (WM_CANCELMODE); con -Elegir -Bajar N se pulsa Abajo N veces y Intro.
+function Npp-MenuContextual([int64]$pos, [int]$dx = 3, [int]$dy = 3, [int]$Bajar = 0, [switch]$Elegir, [switch]$Teclado) {
+    # El envío también se hace con el hilo declarado consciente de DPI: si no, Windows reescala las
+    # coordenadas de pantalla del mensaje al pasar de un proceso "no consciente" a uno consciente.
+    $lp = if ($Teclado) { [IntPtr](-1) } else { Npp-LParamPantalla $pos $dx $dy }     # -1 = desde el teclado (en el cursor)
+    $antes = [NppT]::SetThreadDpiAwarenessContext([IntPtr](-4))
+    [void][NppT]::PostMessage($script:VNpp, 0x007B, $script:VNpp, $lp)    # WM_CONTEXTMENU
+    [void][NppT]::SetThreadDpiAwarenessContext($antes)
+    $pop = [IntPtr]::Zero
+    for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Milliseconds 100; $pop = [NppT]::VentanaPopup([uint32]$script:ProcNpp.Id); if ($pop -ne [IntPtr]::Zero) { break } }
+    if ($pop -eq [IntPtr]::Zero) { return $null }
+    $items = [NppT]::ArbolMenu([NppT]::MenuDePopup($pop), 0)
+    if ($Elegir) {
+        for ($k = 0; $k -lt $Bajar; $k++) { [void][NppT]::PostMessage($pop, 0x0100, [IntPtr]0x28, [IntPtr]::Zero); Start-Sleep -Milliseconds 120 }   # VK_DOWN
+        [void][NppT]::PostMessage($pop, 0x0100, [IntPtr]0x0D, [IntPtr]::Zero)                                                                         # VK_RETURN
+    } else {
+        [void][NppT]::SendMessage($script:HNpp, 0x001F, [IntPtr]::Zero, [IntPtr]::Zero)                                                              # WM_CANCELMODE a Notepad++: cierra el emergente
+    }
+    for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Milliseconds 100; if ([NppT]::VentanaPopup([uint32]$script:ProcNpp.Id) -eq [IntPtr]::Zero) { break } }
+    if ([NppT]::VentanaPopup([uint32]$script:ProcNpp.Id) -ne [IntPtr]::Zero) { $items += "(el emergente NO se cerró)`n" }
+    Start-Sleep -Milliseconds 200
+    return $items
 }
