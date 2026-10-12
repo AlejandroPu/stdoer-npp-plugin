@@ -3,3 +3,4 @@ tests/casos/* -text
 # Código de terceros: sin tocar.
 third_party/** -text
 tests/llaves/* -text
+tests/enlaces/* -text

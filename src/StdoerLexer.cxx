@@ -14,12 +14,14 @@
 //
 // Código de Lexilla/Scintilla en third_party\lexilla (licencia HPND, ver ORIGEN.md).
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include "ILexer.h"
 #include "LexerModule.h"
+#include "Enlaces.h"
 #include "Llaves.h"
 
 extern const Lexilla::LexerModule lmPython;
@@ -45,7 +47,14 @@ namespace
 		int SCI_METHOD Version() const override { return real_->Version(); }
 		void SCI_METHOD SetErrorStatus(int e) override { real_->SetErrorStatus(e); }
 		Sci_Position SCI_METHOD Length() const override { return real_->Length(); }
-		void SCI_METHOD GetCharRange(char* b, Sci_Position p, Sci_Position n) const override { real_->GetCharRange(b, p, n); }
+		// Python no ve las rutas de los enlaces: se le entregan como "xxx" (mismo largo), así
+		// ni comillas, "#" ni llaves de una ruta cambian su coloreado ni su plegado.
+		void SCI_METHOD GetCharRange(char* b, Sci_Position p, Sci_Position n) const override
+		{
+			real_->GetCharRange(b, p, n);
+			if (n > 0)
+				EnmascararRutas(b, p, n);
+		}
 		char SCI_METHOD StyleAt(Sci_Position p) const override { return real_->StyleAt(p); }
 		Sci_Position SCI_METHOD LineFromPosition(Sci_Position p) const override { return real_->LineFromPosition(p); }
 		Sci_Position SCI_METHOD LineStart(Sci_Position l) const override { return real_->LineStart(l); }
@@ -79,6 +88,41 @@ namespace
 
 	private:
 		bool EnRango(Sci_Position l) const { return l >= 0 && static_cast<std::size_t>(l) < niveles_.size(); }
+
+		// Sustituye por 'x' las rutas de enlace que caen dentro de [p, p + n) del búfer b.
+		// Los enlaces viven en una sola línea: se leen las líneas completas que toca el rango.
+		void EnmascararRutas(char* b, Sci_Position p, Sci_Position n) const
+		{
+			const Sci_Position primera = real_->LineFromPosition(p);
+			const Sci_Position ultima = real_->LineFromPosition(p + n);
+			const Sci_Position desde = real_->LineStart(primera);
+			const Sci_Position hasta = real_->LineEnd(ultima);
+			if (hasta <= desde)
+				return;
+			std::string linea(static_cast<std::size_t>(hasta - desde), '\0');
+			real_->GetCharRange(&linea[0], desde, hasta - desde);
+			if (linea.find("__link[") == std::string::npos)
+				return;
+			// Se recorre línea por línea para que Buscar no cruce saltos de línea.
+			for (Sci_Position l = primera; l <= ultima; ++l)
+			{
+				const Sci_Position ini = real_->LineStart(l);
+				const Sci_Position fin = real_->LineEnd(l);
+				if (fin <= ini)
+					continue;
+				const auto enlaces = Enlaces::Buscar(linea.data() + (ini - desde), static_cast<std::size_t>(fin - ini));
+				for (const auto& e : enlaces)
+				{
+					Sci_Position a = ini + static_cast<Sci_Position>(e.inicioRuta());
+					Sci_Position z = ini + static_cast<Sci_Position>(e.cierra);  // exclusivo
+					a = std::max(a, p);
+					z = std::min(z, p + n);
+					for (Sci_Position k = a; k < z; ++k)
+						b[k - p] = 'x';
+				}
+			}
+		}
+
 		IDocument* real_;
 		std::vector<int> niveles_;
 	};
@@ -96,7 +140,7 @@ namespace
 		Sci_Position SCI_METHOD PropertySet(const char* k, const char* v) override { return py_->PropertySet(k, v); }
 		const char* SCI_METHOD DescribeWordListSets() override { return py_->DescribeWordListSets(); }
 		Sci_Position SCI_METHOD WordListSet(int n, const char* wl) override { return py_->WordListSet(n, wl); }
-		void SCI_METHOD Lex(Sci_PositionU p, Sci_Position l, int e, IDocument* d) override { py_->Lex(p, l, e, d); }
+		void SCI_METHOD Lex(Sci_PositionU p, Sci_Position l, int e, IDocument* d) override;
 		void SCI_METHOD Fold(Sci_PositionU p, Sci_Position l, int e, IDocument* d) override;
 		void* SCI_METHOD PrivateCall(int o, void* p) override { return py_->PrivateCall(o, p); }
 		int SCI_METHOD LineEndTypesSupported() override { return py_->LineEndTypesSupported(); }
@@ -113,13 +157,59 @@ namespace
 		const char* SCI_METHOD NameOfStyle(int s) override { return py_->NameOfStyle(s); }
 		const char* SCI_METHOD TagsOfStyle(int s) override { return py_->TagsOfStyle(s); }
 		const char* SCI_METHOD DescriptionOfStyle(int s) override { return py_->DescriptionOfStyle(s); }
-		const char* SCI_METHOD GetName() override { return py_->GetName(); }
+		const char* SCI_METHOD GetName() override { return kNombreLexer; }
 		int SCI_METHOD GetIdentifier() override { return py_->GetIdentifier(); }
 		const char* SCI_METHOD PropertyGet(const char* k) override { return py_->PropertyGet(k); }
 
 	private:
 		ILexer5* py_;
 	};
+
+	// Coloreado: lo hace Python sobre un texto sin rutas de enlace; después se da a cada
+	// enlace su estilo (ver Enlaces.h): "link[" y "]" son la zona clicable, y la ruta queda
+	// oculta, salvo que el cursor o la selección la toquen (estado compartido con el plugin).
+	// Los enlaces están en una sola línea, así que se estilan las líneas completas del rango.
+	void EstilarEnlaces(IDocument* doc, Sci_PositionU inicio, Sci_Position largo)
+	{
+		const Sci_Position total = doc->Length();
+		if (total <= 0 || largo <= 0)
+			return;
+		const Sci_Position fin = std::min<Sci_Position>(static_cast<Sci_Position>(inicio) + largo, total);
+		const Sci_Position primera = doc->LineFromPosition(static_cast<Sci_Position>(inicio));
+		const Sci_Position ultima = doc->LineFromPosition(fin);
+		const Sci_Position desde = doc->LineStart(primera);
+		const Sci_Position hasta = doc->LineEnd(ultima);
+		if (hasta <= desde)
+			return;
+		std::string texto(static_cast<std::size_t>(hasta - desde), '\0');
+		doc->GetCharRange(&texto[0], desde, hasta - desde);
+		if (texto.find("__link[") == std::string::npos)
+			return;
+		for (Sci_Position l = primera; l <= ultima; ++l)
+		{
+			const Sci_Position ini = doc->LineStart(l);
+			const Sci_Position fl = doc->LineEnd(l);
+			if (fl <= ini)
+				continue;
+			for (const auto& e : Enlaces::Buscar(texto.data() + (ini - desde), static_cast<std::size_t>(fl - ini)))
+			{
+				doc->StartStyling(ini + static_cast<Sci_Position>(e.inicioZonaClic()));
+				doc->SetStyleFor(static_cast<Sci_Position>(e.abre - e.inicioZonaClic() + 1), static_cast<char>(Enlaces::kEstiloEnlace));
+				if (e.cierra > e.abre + 1)
+					doc->SetStyleFor(static_cast<Sci_Position>(e.cierra - e.abre - 1), static_cast<char>(Enlaces::EstiloDeRuta(e, ini)));
+				doc->SetStyleFor(1, static_cast<char>(Enlaces::kEstiloEnlace));
+			}
+		}
+		// Python dejó el "ya estilado hasta" al final del rango; se restituye.
+		doc->StartStyling(fin);
+	}
+
+	void SCI_METHOD LexerStdoer::Lex(Sci_PositionU inicio, Sci_Position largo, int estadoInicial, IDocument* doc)
+	{
+		DocumentoSombra enmascarado(doc, 0);
+		py_->Lex(inicio, largo, estadoInicial, &enmascarado);
+		EstilarEnlaces(doc, inicio, largo);
+	}
 
 	// Siempre se recalcula el documento entero, sea cual sea el rango que pida Scintilla:
 	// que una "{" tenga pareja depende de texto lejano (y si se borra una "}" cambia el

@@ -1,16 +1,18 @@
 // Stdoer — plugin de Notepad++ para el lenguaje propio .stdoer
-// 0.3.0: además del menú, el lexer externo "stdoer" (ver StdoerLexer.cxx y Llaves.h).
+// 0.4.0: además del menú, el lexer externo "stdoer" (ver StdoerLexer.cxx, Llaves.h y
+// Enlaces.h) y la atención de los enlaces en la ventana (EnlacesUI.cpp).
 //
 // Las cabeceras de interfaz de third_party/plugintemplate son de terceros
 // (GPL v2+, ver third_party/ORIGEN.md). Este archivo es propio.
 
 #include <windows.h>
 #include "PluginInterface.h"
+#include "EnlacesUI.h"
 
 namespace
 {
 	const wchar_t kNombre[]  = L"Stdoer";
-	const wchar_t kVersion[] = L"0.3.0";
+	const wchar_t kVersion[] = L"0.4.0";
 
 	NppData  g_npp;
 	FuncItem g_menu[1];
@@ -31,6 +33,7 @@ BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID)
 extern "C" __declspec(dllexport) void setInfo(NppData datos)
 {
 	g_npp = datos;
+	EnlacesUI::Iniciar(datos);
 	lstrcpynW(g_menu[0]._itemName, L"Acerca de Stdoer", menuItemSize);
 	g_menu[0]._pFunc = acercaDe;
 }
@@ -46,8 +49,9 @@ extern "C" __declspec(dllexport) FuncItem* getFuncsArray(int* cantidad)
 	return g_menu;
 }
 
-extern "C" __declspec(dllexport) void beNotified(SCNotification*)
+extern "C" __declspec(dllexport) void beNotified(SCNotification* notificacion)
 {
+	EnlacesUI::Notificar(notificacion);
 }
 
 extern "C" __declspec(dllexport) LRESULT messageProc(UINT, WPARAM, LPARAM)
