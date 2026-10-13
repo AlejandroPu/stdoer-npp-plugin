@@ -3,8 +3,8 @@ rem Compila Stdoer.dll (x64, Unicode) en build\. Uso: compilar.cmd
 rem Todo el codigo fuente es UTF-8 (/utf-8); sin eso cl lo lee con la pagina de
 rem codigos local (1252) y los acentos de los textos salen mal.
 setlocal
-set "VC=D:\VisualStudio\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
-if not exist "%VC%" ( echo No se encuentra %VC% & exit /b 1 )
+call "%~dp0buscar-vc.cmd"
+if not exist "%VC%" ( echo No se encuentra Visual Studio con C++ x64: ver buscar-vc.cmd & exit /b 1 )
 call "%VC%" >nul 2>&1
 if errorlevel 1 ( echo Fallo al cargar el entorno del compilador & exit /b 1 )
 cd /d "%~dp0"

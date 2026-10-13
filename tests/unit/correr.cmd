@@ -1,7 +1,8 @@
 @echo off
 rem Compila y corre las pruebas unitarias (no necesitan Notepad++). Uso: tests\unit\correr.cmd
 setlocal
-set "VC=D:\VisualStudio\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+call "%~dp0..\..\buscar-vc.cmd"
+if not exist "%VC%" ( echo No se encuentra Visual Studio con C++ x64: ver buscar-vc.cmd & exit /b 1 )
 call "%VC%" >nul 2>&1
 cd /d "%~dp0\..\.."
 if not exist build\unit mkdir build\unit

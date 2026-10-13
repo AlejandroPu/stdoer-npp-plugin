@@ -1,7 +1,8 @@
 # Stdoer — desarrollo
 
 Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archivos
-`.stdoer`. Diseño completo en el proyecto de planeación: `diseno/lenguaje-notepad.md`.
+`.stdoer`. Qué es y cómo se instala → `README.md`. Esta guía es para quien lo compile,
+lo pruebe o lo modifique.
 
 **Estado: 0.5.0.** Hace estas cosas:
 
@@ -117,8 +118,7 @@ Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archiv
 - El texto de la ruta cuenta para Buscar (un hallazgo dentro de una ruta oculta se muestra
   al seleccionarse, por la regla de arriba).
 - El recuadro depende del evento de «mouse detenido» de Scintilla (500 ms); la lógica se
-  probó por mensaje directo al plugin y el usuario confirmó que aparece con el mouse real
-  (2026-10-12).
+  probó por mensaje directo al plugin, y se comprobó a mano que aparece con el mouse real.
 - El menú se probó con el clic derecho «de verdad» a nivel de mensaje (`WM_CONTEXTMENU` →
   menú emergente real → opción elegida con el teclado); un clic físico del mouse lo hace
   igual, pero queda para prueba manual.
@@ -126,7 +126,9 @@ Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archiv
 
 ## Requisitos
 
-- Visual Studio Build Tools 2026 en `D:\VisualStudio\BuildTools` (MSVC + Windows SDK).
+- Visual Studio o sus Build Tools, con C++ x64 (MSVC + Windows SDK); probado con Build
+  Tools 2026. `compilar.cmd` lo encuentra solo con `vswhere` (ver `buscar-vc.cmd`); para
+  usar otro: `set STDOER_VCVARS=<ruta de vcvars64.bat>`.
 - Notepad++ 8.8.2 x64 portátil en `npp-portable\` (no está en git; ver más abajo).
 
 ## Compilar
@@ -279,7 +281,7 @@ Direcciones web y esquemas: ~70 casos (http/https que se abren; `javascript:`, `
 no). Con `STDOER_SIN_SHELL`: ninguna abre nada de verdad.
 
 `pruebas\` está en `.gitignore`: ahí van copias de documentos personales. Nada personal
-va en archivos versionados (ni rutas ni nombres de mis documentos). Los archivos de
+va en archivos versionados (ni rutas ni nombres de documentos personales). Los archivos de
 `tests\objetivos\` son inventados; los scripts que hacen enlaces a ellos calculan la ruta
 completa al ejecutarse y escriben el resultado en `build\` o `pruebas\`.
 
@@ -348,7 +350,9 @@ extraída en `npp-portable\`. Está en `.gitignore`.
 - `third_party\plugintemplate\` — cabeceras de interfaz de plugins (GPL v2+, sin
   modificar). `third_party\lexilla\` — Lexilla 5.4.5 (HPND, sin modificar). Origen y
   licencias en `third_party\ORIGEN.md`.
-- `compilar.cmd`, `instalar.cmd` — compilar e instalar en el portátil.
+- `compilar.cmd`, `instalar.cmd` — compilar e instalar en el portátil; `buscar-vc.cmd` —
+  encuentra el compilador.
+- `LICENSE` — GNU GPL v2.
 - `tests\` — los scripts de prueba, `herramientas-npp.ps1` (ayudantes), los casos inventados
   `casos\`, `llaves\`, `enlaces\`, los archivos de prueba `objetivos\` y `unit\`.
 - `build\` — salida de compilación y de pruebas; `pruebas\` — copias personales y demos.
