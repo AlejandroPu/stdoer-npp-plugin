@@ -17,11 +17,11 @@ jobs:
 
       - name: Build Stdoer.dll
         shell: cmd
-        run: call compilar.cmd
+        run: call build.cmd
 
       - name: Unit tests (link parser)
         shell: cmd
-        run: call tests\unit\correr.cmd
+        run: call tests\unit\run.cmd
 
       - name: Upload Stdoer.dll
         uses: actions/upload-artifact@v4

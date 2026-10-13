@@ -1,27 +1,27 @@
-// Stdoer — plugin de Notepad++ para el lenguaje propio .stdoer
-// 0.5.0: además del menú, el lexer externo "stdoer" (ver StdoerLexer.cxx, Llaves.h y
-// Enlaces.h) y la atención de los enlaces en la ventana, con su menú del clic derecho (EnlacesUI.cpp).
+// Stdoer — Notepad++ plugin for the .stdoer language
+// 0.6.0: besides the menu, the external lexer "stdoer" (see StdoerLexer.cxx, Braces.h and
+// Links.h) and the handling of links in the window, with their right-click menu (LinksUI.cpp).
 //
-// Las cabeceras de interfaz de third_party/plugintemplate son de terceros
-// (GPL v2+, ver third_party/ORIGIN.md). Este archivo es propio.
+// The interface headers in third_party/plugintemplate are third-party
+// (GPL v2+, see third_party/ORIGIN.md). This file is our own.
 
 #include <windows.h>
 #include "PluginInterface.h"
-#include "EnlacesUI.h"
+#include "LinksUI.h"
 
 namespace
 {
-	const wchar_t kNombre[]  = L"Stdoer";
-	const wchar_t kVersion[] = L"0.5.0";
+	const wchar_t kName[]    = L"Stdoer";
+	const wchar_t kVersion[] = L"0.6.0";
 
 	NppData  g_npp;
 	FuncItem g_menu[1];
 
-	void acercaDe()
+	void about()
 	{
-		wchar_t texto[128];
-		wsprintfW(texto, L"%s versión %s", kNombre, kVersion);
-		::MessageBoxW(g_npp._nppHandle, texto, L"Acerca de Stdoer", MB_OK | MB_ICONINFORMATION);
+		wchar_t text[128];
+		wsprintfW(text, L"%s version %s", kName, kVersion);
+		::MessageBoxW(g_npp._nppHandle, text, L"About Stdoer", MB_OK | MB_ICONINFORMATION);
 	}
 }
 
@@ -30,34 +30,34 @@ BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID)
 	return TRUE;
 }
 
-extern "C" __declspec(dllexport) void setInfo(NppData datos)
+extern "C" __declspec(dllexport) void setInfo(NppData data)
 {
-	g_npp = datos;
-	EnlacesUI::Iniciar(datos);
-	lstrcpynW(g_menu[0]._itemName, L"Acerca de Stdoer", menuItemSize);
-	g_menu[0]._pFunc = acercaDe;
+	g_npp = data;
+	LinksUI::Init(data);
+	lstrcpynW(g_menu[0]._itemName, L"About Stdoer", menuItemSize);
+	g_menu[0]._pFunc = about;
 }
 
 extern "C" __declspec(dllexport) const wchar_t* getName()
 {
-	return kNombre;
+	return kName;
 }
 
-extern "C" __declspec(dllexport) FuncItem* getFuncsArray(int* cantidad)
+extern "C" __declspec(dllexport) FuncItem* getFuncsArray(int* count)
 {
-	*cantidad = 1;
+	*count = 1;
 	return g_menu;
 }
 
-extern "C" __declspec(dllexport) void beNotified(SCNotification* notificacion)
+extern "C" __declspec(dllexport) void beNotified(SCNotification* notification)
 {
-	EnlacesUI::Notificar(notificacion);
+	LinksUI::Notify(notification);
 }
 
-extern "C" __declspec(dllexport) LRESULT messageProc(UINT mensaje, WPARAM, LPARAM lParam)
+extern "C" __declspec(dllexport) LRESULT messageProc(UINT message, WPARAM, LPARAM lParam)
 {
-	if (mensaje == NPPM_MSGTOPLUGIN)
-		return EnlacesUI::MensajeDePrueba(reinterpret_cast<const CommunicationInfo*>(lParam));
+	if (message == NPPM_MSGTOPLUGIN)
+		return LinksUI::TestMessage(reinterpret_cast<const CommunicationInfo*>(lParam));
 	return TRUE;
 }
 

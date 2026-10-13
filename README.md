@@ -4,7 +4,7 @@ Notepad++ plugin (Windows, x64) that adds the **`stdoer`** language for writing 
 documents organized as an outline: sections that fold by indentation or with braces, and
 links to files, folders and web pages that open with a click.
 
-**Version 0.5.0.** Tested on Notepad++ 8.8.2 x64.
+**Version 0.6.0.** Tested on Notepad++ 8.8.2 x64.
 
 ---
 
@@ -114,7 +114,7 @@ A document with links should not be able to cause harm when opened or clicked:
 ## Installation
 
 The compiled `Stdoer.dll` and `Stdoer.xml` are on this repository's **Releases** page,
-in `Stdoer-0.5.0-x64.zip`.
+in `Stdoer-0.6.0-x64.zip`.
 
 1. Close Notepad++.
 2. Copy both files into the Notepad++ installation folder:
@@ -134,9 +134,6 @@ in `Stdoer-0.5.0-x64.zip`.
 - Copying text that contains a link also copies the hidden path between `[` and `]`.
 - Notepad++ search also finds text inside hidden paths. The path is hidden only from
   view; the original text with the path is still there.
-- In 0.5.0 the plugin's menus and messages are still in Spanish (for example, *Abrir*
-  for Open and *Desactivar enlace* for Disable link). English is planned for the next
-  version.
 
 ## Building
 
