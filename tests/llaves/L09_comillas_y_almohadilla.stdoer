@@ -1,0 +1,10 @@
+texto
+"cadena {
+x
+}
+# nota {
+y
+}
+fin
+"}"
+s = "{"

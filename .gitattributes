@@ -1,0 +1,7 @@
+# Los casos de prueba dependen de sus bytes exactos (CRLF, sin salto final...).
+tests/casos/* -text
+# Código de terceros: sin tocar.
+third_party/** -text
+tests/llaves/* -text
+tests/enlaces/* -text
+tests/objetivos/* -text
