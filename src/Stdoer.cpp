@@ -3,7 +3,7 @@
 // Enlaces.h) y la atención de los enlaces en la ventana, con su menú del clic derecho (EnlacesUI.cpp).
 //
 // Las cabeceras de interfaz de third_party/plugintemplate son de terceros
-// (GPL v2+, ver third_party/ORIGEN.md). Este archivo es propio.
+// (GPL v2+, ver third_party/ORIGIN.md). Este archivo es propio.
 
 #include <windows.h>
 #include "PluginInterface.h"

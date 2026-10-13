@@ -12,7 +12,7 @@
 //   - Las propiedades que Notepad++ fija para Python y que a un lexer externo no le fija
 //     nadie, se fijan aquí con los mismos valores.
 //
-// Código de Lexilla/Scintilla en third_party\lexilla (licencia HPND, ver ORIGEN.md).
+// Código de Lexilla/Scintilla en third_party\lexilla (licencia HPND, ver ORIGIN.md).
 
 #include <algorithm>
 #include <cstring>
