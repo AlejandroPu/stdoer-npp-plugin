@@ -134,14 +134,18 @@ in `Stdoer-0.5.0-x64.zip`.
 - Copying text that contains a link also copies the hidden path between `[` and `]`.
 - Notepad++ search also finds text inside hidden paths. The path is hidden only from
   view; the original text with the path is still there.
+- In 0.5.0 the plugin's menus and messages are still in Spanish (for example, *Abrir*
+  for Open and *Desactivar enlace* for Disable link). English is planned for the next
+  version.
 
 ## Building
 
 Visual Studio Build Tools (MSVC and Windows SDK) was used to build it. Build
-instructions, the test suite and the internals are in `DESARROLLO.md` (in Spanish).
+instructions, the test suite and the internals are in
+[`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 ## License
 
-GNU GPL v2 or later. It includes, unmodified, the headers of the Notepad++ plugin
-template (GPL v2+) and the Python lexer from Lexilla 5.4.5 (HPND license). Details in
-`third_party\ORIGEN.md`.
+GNU GPL v2 or later: see [`LICENSE`](LICENSE). It includes, unmodified, the headers of
+the Notepad++ plugin template (GPL v2+) and the Python lexer from Lexilla 5.4.5 (HPND
+license). Details in [`third_party/ORIGIN.md`](third_party/ORIGIN.md).
