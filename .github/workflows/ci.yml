@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & unit tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Stdoer.dll
+        shell: cmd
+        run: call compilar.cmd
+
+      - name: Unit tests (link parser)
+        shell: cmd
+        run: call tests\unit\correr.cmd
+
+      - name: Upload Stdoer.dll
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stdoer-x64
+          path: |
+            build/Stdoer.dll
+            config/Stdoer.xml

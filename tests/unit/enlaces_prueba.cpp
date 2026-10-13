@@ -69,7 +69,7 @@ int main()
 	Caso("__link[a] __link[b", "0:6:8");         // el segundo, sin cerrar, no cuenta
 	Caso("__LINK[a]", "-");                      // distingue mayúsculas
 	Caso("__link [a]", "-");
-	Caso("  __link[F:\carpeta\archivo.txt]", "2:8:31");
+	Caso(R"(  __link[F:\carpeta\archivo.txt])", "2:8:31");
 	Caso("# __link[a] {", "2:8:10");             // # y llaves no importan
 
 	// --- RutaTocada: ruta [107,110), zona de cursor 107..110 ---
@@ -125,22 +125,22 @@ int main()
 	Comprobar(ClasificarExtension(L"") == Destino::Carpeta, "sin extension");
 
 	// --- ExtensionDe ---
-	Comprobar(ExtensionDe(L"C:\a\b.TXT") == L".txt", "ExtensionDe mayuscula");
-	Comprobar(ExtensionDe(L"C:\a.b\c") == L"", "punto en carpeta, no en archivo");
-	Comprobar(ExtensionDe(L"C:\a\b") == L"", "sin extension");
-	Comprobar(ExtensionDe(L"C:\a\b.tar.gz") == L".gz", "ultima extension");
-	Comprobar(ExtensionDe(L"C:\a\.stdoer") == L".stdoer", "archivo que empieza con punto");
+	Comprobar(ExtensionDe(LR"(C:\a\b.TXT)") == L".txt", "ExtensionDe mayuscula");
+	Comprobar(ExtensionDe(LR"(C:\a.b\c)") == L"", "punto en carpeta, no en archivo");
+	Comprobar(ExtensionDe(LR"(C:\a\b)") == L"", "sin extension");
+	Comprobar(ExtensionDe(LR"(C:\a\b.tar.gz)") == L".gz", "ultima extension");
+	Comprobar(ExtensionDe(LR"(C:\a\.stdoer)") == L".stdoer", "archivo que empieza con punto");
 
 	// --- EsRutaAbsoluta ---
-	Comprobar(EsRutaAbsoluta(L"C:\a"), "unidad");
+	Comprobar(EsRutaAbsoluta(LR"(C:\a)"), "unidad");
 	Comprobar(EsRutaAbsoluta(L"c:/a"), "unidad con barra");
-	Comprobar(EsRutaAbsoluta(L"\\servidor\recurso\a"), "UNC");
-	Comprobar(!EsRutaAbsoluta(L"a\b.txt"), "relativa");
-	Comprobar(!EsRutaAbsoluta(L"..\a"), "relativa con ..");
+	Comprobar(EsRutaAbsoluta(LR"(\\servidor\recurso\a)"), "UNC");
+	Comprobar(!EsRutaAbsoluta(LR"(a\b.txt)"), "relativa");
+	Comprobar(!EsRutaAbsoluta(LR"(..\a)"), "relativa con ..");
 	Comprobar(!EsRutaAbsoluta(L"C:a"), "unidad sin barra (relativa a la unidad)");
-	Comprobar(!EsRutaAbsoluta(L"\a"), "raiz sin unidad");
+	Comprobar(!EsRutaAbsoluta(LR"(\a)"), "raiz sin unidad");
 	Comprobar(!EsRutaAbsoluta(L""), "vacia");
-	Comprobar(!EsRutaAbsoluta(L"\\?\C:\a"), "prefijo de ruta larga: no admitido");
+	Comprobar(!EsRutaAbsoluta(LR"(\\?\C:\a)"), "prefijo de ruta larga: no admitido");
 	Comprobar(!EsRutaAbsoluta(L"http://x"), "URL");
 
 	// --- Recortar ---
