@@ -1,7 +1,7 @@
-# Los casos de prueba dependen de sus bytes exactos (CRLF, sin salto final...).
-tests/casos/* -text
-# Código de terceros: sin tocar.
+# The test cases depend on their exact bytes (CRLF, no final newline...).
+tests/cases/* -text
+# Third-party code: untouched.
 third_party/** -text
-tests/llaves/* -text
-tests/enlaces/* -text
-tests/objetivos/* -text
+tests/braces/* -text
+tests/links/* -text
+tests/targets/* -text

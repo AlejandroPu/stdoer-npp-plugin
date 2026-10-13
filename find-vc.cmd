@@ -1,8 +1,8 @@
 @echo off
-rem Deja en VC la ruta de vcvars64.bat del Visual Studio (o Build Tools) mas reciente que
-rem tenga el compilador de C++ x64. Lo busca con vswhere, que viene con el instalador de
-rem Visual Studio. Para usar otro: set STDOER_VCVARS=<ruta de vcvars64.bat>.
-rem Uso: call buscar-vc.cmd
+rem Sets VC to the path of vcvars64.bat of the most recent Visual Studio (or Build Tools) that
+rem has the x64 C++ compiler. It looks for it with vswhere, which comes with the Visual
+rem Studio installer. To use another one: set STDOER_VCVARS=<path of vcvars64.bat>.
+rem Usage: call find-vc.cmd
 set "VC=%STDOER_VCVARS%"
 if defined VC goto :eof
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
