@@ -1,40 +1,41 @@
-﻿# Pruebas de SEGURIDAD del texto oculto de los enlaces (diseño: "Seguridad del contenido").
+# SAFETY tests of the hidden text of the links.
 #
-# Criterio: ninguna acción común puede borrar o cambiar la ruta oculta sin que se vea. Si
-# falla, lo aceptable es que el enlace quede visible; nunca que el texto cambie a escondidas.
+# Criterion: no common action may delete or change the hidden path without it being seen. If
+# one fails, the acceptable outcome is that the link ends up visible; never that the text
+# changes behind the user's back.
 #
-# Uso (desde la carpeta stdoer):   .\tests\seguridad-enlaces.ps1  [-SinPortapapeles]
+# Usage (from the stdoer folder):   .\tests\link-safety.ps1  [-NoClipboard]
 #
-# Documento de prueba (inventado):   antes __link[SECRETO-123] despues
-# Cada escenario: se prepara el cursor/selección, se anota si la ruta estaba MOSTRADA, se
-# hace la acción (con los mismos comandos que las teclas: Retroceso, Suprimir, escribir...),
-# y se juzga el resultado:
-#   OK intacta     la ruta sigue igual
-#   OK deshecho    ya no queda ningún enlace (todo el texto quedó a la vista o se borró entero)
-#   OK visto       la ruta cambió, pero estaba mostrada cuando se hizo la acción
-#   OK expuesto    la ruta cambió por una vía que no se ve (Reemplazar todo) y el plugin la dejó
-#                  a la vista y/o puso un aviso (anotación bajo el enlace)
-#   FALLA          la ruta cambió estando oculta
-# Y se comprueba que Deshacer devuelve el texto original y Rehacer el resultado.
-# Las acciones con el portapapeles lo pisan: se guarda y restaura el contenido si es texto
-# (si no lo es, esas pruebas se omiten). Se trabaja en el portátil, sin guardar nada.
+# Test document (made up):   start __link[SECRET-1234] after
+# Each scenario: the cursor/selection is prepared, it is noted whether the path was SHOWN, the
+# action is done (with the same commands as the keys: Backspace, Delete, typing...), and the
+# result is judged:
+#   OK intact      the path is unchanged
+#   OK undone      no link is left (all the text ended up in view or was deleted entirely)
+#   OK seen        the path changed, but it was shown when the action was done
+#   OK exposed     the path changed in a way that cannot be seen (Replace All) and the plugin
+#                  left it in view and/or put up a warning (annotation under the link)
+#   FAIL           the path changed while hidden
+# And it is checked that Undo returns the original text and Redo the result.
+# Actions with the clipboard overwrite it: its content is saved and restored if it is text
+# (if it is not, those tests are skipped). It works in the portable copy, saving nothing.
 
-param([switch]$SinPortapapeles)
+param([switch]$NoClipboard)
 $ErrorActionPreference = 'Stop'
-$script:Raiz = Split-Path -Parent $PSScriptRoot
-. (Join-Path $PSScriptRoot 'herramientas-npp.ps1')
+$script:Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'npp-tools.ps1')
 
-$work = Join-Path $Raiz 'build\seguridad'
+$work = Join-Path $Root 'build\safety'
 if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory $work | Out-Null
-$archivo = Join-Path $work 'S01.stdoer'
-$D0 = "antes __link[SECRETO-123] despues`nfin`n"
-$ORIG = 'SECRETO-123'
-[IO.File]::WriteAllText($archivo, $D0, (New-Object Text.UTF8Encoding $false))
+$file = Join-Path $work 'S01.stdoer'
+$D0 = "start __link[SECRET-1234] after`nend`n"
+$ORIG = 'SECRET-1234'
+[IO.File]::WriteAllText($file, $D0, (New-Object Text.UTF8Encoding $false))
 
-Npp-Abrir @($archivo) -Log (Join-Path $work 'stdoer.log')
-$doc = Npp-Documentos | Where-Object { $_.Ruta -eq $archivo }
-Npp-Activar $doc.Indice
+Npp-Open @($file) -Log (Join-Path $work 'stdoer.log')
+$doc = Npp-Documents | Where-Object { $_.Path -eq $file }
+Npp-Activate $doc.Index
 
 $SCI_SETTEXT = 2181; $SCI_EMPTYUNDOBUFFER = 2175; $SCI_COLOURISE = 4003; $SCI_GOTOPOS = 2025
 $SCI_SETSEL = 2160; $SCI_UNDO = 2176; $SCI_REDO = 2011; $SCI_DELETEBACK = 2326; $SCI_CLEAR = 2180
@@ -43,183 +44,183 @@ $SCI_COPY = 2178; $SCI_PASTE = 2179; $SCI_REPLACESEL = 2170; $SCI_SETTARGETRANGE
 $SCI_SEARCHINTARGET = 2197; $SCI_REPLACETARGET = 2194; $SCI_GETLENGTH = 2006; $SCI_SETTARGETSTART = 2190; $SCI_SETTARGETEND = 2192
 $WM_CHAR = 0x102
 
-function Reiniciar {
-    [void](SciCadena $SCI_SETTEXT 0 $D0)
+function Reset-Doc {
+    [void](SciString $SCI_SETTEXT 0 $D0)
     [void](Sci $SCI_EMPTYUNDOBUFFER)
     [void](Sci $SCI_COLOURISE 0 -1)
     [void](Sci $SCI_GOTOPOS 0)
     Start-Sleep -Milliseconds 30
 }
-function Ruta-Mostrada { (SciMapaEstilos (SciTexto)) -match 'r' }
-function Enlaces-Del([string]$texto) { [regex]::Matches($texto, '__link\[([^\]]*)\]') | ForEach-Object { $_.Groups[1].Value } }
+function Path-Shown { (SciStyleMap (SciText)) -match 'r' }
+function Links-Of([string]$text) { [regex]::Matches($text, '__link\[([^\]]*)\]') | ForEach-Object { $_.Groups[1].Value } }
 
-# Juzga el resultado de una acción.
-function Juzgar([string]$antes, [bool]$mostrada, [string]$despues, [string]$mapaDespues, [bool]$avisoActivo) {
-    if ($despues -eq $antes) { return 'OK igual' }
-    $rutas = @(Enlaces-Del $despues)
-    if ($rutas -contains $ORIG) { return 'OK intacta' }
-    if ($rutas.Count -eq 0) { return 'OK deshecho' }
-    if ($mostrada) { return 'OK visto' }
-    if ($avisoActivo -or ($mapaDespues -match 'r' -and $mapaDespues -notmatch 'h')) { return 'OK expuesto' }
-    return 'FALLA'
+# Judges the result of an action.
+function Judge([string]$before, [bool]$shown, [string]$after, [string]$mapAfter, [bool]$warningActive) {
+    if ($after -eq $before) { return 'OK same' }
+    $paths = @(Links-Of $after)
+    if ($paths -contains $ORIG) { return 'OK intact' }
+    if ($paths.Count -eq 0) { return 'OK undone' }
+    if ($shown) { return 'OK seen' }
+    if ($warningActive -or ($mapAfter -match 'r' -and $mapAfter -notmatch 'h')) { return 'OK exposed' }
+    return 'FAIL'
 }
 
-$resultados = New-Object 'System.Collections.Generic.List[object]'
-$fallos = 0; $falloUndo = 0
-function Escenario([string]$grupo, [string]$nombre, [scriptblock]$preparar, [scriptblock]$accion) {
-    if ($grupo -like 'reemplaz*') { Write-Host ("  " + (Get-Date -Format 'HH:mm:ss') + " ... $nombre") }
-    Reiniciar
-    & $preparar
+$results = New-Object 'System.Collections.Generic.List[object]'
+$failures = 0; $undoFailures = 0
+function Scenario([string]$group, [string]$name, [scriptblock]$prepare, [scriptblock]$action) {
+    if ($group -like 'replace*') { Write-Host ("  " + (Get-Date -Format 'HH:mm:ss') + " ... $name") }
+    Reset-Doc
+    & $prepare
     Start-Sleep -Milliseconds 40
-    $antes = SciTexto
-    $mostrada = Ruta-Mostrada
-    $script:mostradaAlCambiar = $null
-    & $accion
+    $before = SciText
+    $shown = Path-Shown
+    $script:shownAtChange = $null
+    & $action
     Start-Sleep -Milliseconds 40
-    if ($script:mostradaAlCambiar -ne $null) { $mostrada = $script:mostradaAlCambiar }
-    $despues = SciTexto
-    $v = Juzgar $antes $mostrada $despues (SciMapaEstilos $despues) ((Sci 2546 0) -gt 0)   # SCI_ANNOTATIONGETLINES de la línea 0: aviso del plugin
-    # Deshacer / rehacer
+    if ($script:shownAtChange -ne $null) { $shown = $script:shownAtChange }
+    $after = SciText
+    $v = Judge $before $shown $after (SciStyleMap $after) ((Sci 2546 0) -gt 0)   # SCI_ANNOTATIONGETLINES of line 0: the plugin's warning
+    # Undo / redo
     $undoOk = $true; $redoOk = $true
-    if ($despues -ne $antes) {
-        for ($i = 0; $i -lt 6 -and (SciTexto) -ne $antes; $i++) { [void](Sci $SCI_UNDO) }
-        $undoOk = ((SciTexto) -eq $antes)
-        for ($i = 0; $i -lt 6 -and (SciTexto) -ne $despues; $i++) { [void](Sci $SCI_REDO) }
-        $redoOk = ((SciTexto) -eq $despues)
+    if ($after -ne $before) {
+        for ($i = 0; $i -lt 6 -and (SciText) -ne $before; $i++) { [void](Sci $SCI_UNDO) }
+        $undoOk = ((SciText) -eq $before)
+        for ($i = 0; $i -lt 6 -and (SciText) -ne $after; $i++) { [void](Sci $SCI_REDO) }
+        $redoOk = ((SciText) -eq $after)
     }
-    if ($v -eq 'FALLA') { $script:fallos++ }
-    if (-not $undoOk -or -not $redoOk) { $script:falloUndo++ }
-    $resultados.Add([pscustomobject]@{ Grupo = $grupo; Nombre = $nombre; Veredicto = $v; Mostrada = $mostrada; Undo = $undoOk; Redo = $redoOk; Despues = ($despues -replace "`n", '\n') })
+    if ($v -eq 'FAIL') { $script:failures++ }
+    if (-not $undoOk -or -not $redoOk) { $script:undoFailures++ }
+    $results.Add([pscustomobject]@{ Group = $group; Name = $name; Verdict = $v; Shown = $shown; Undo = $undoOk; Redo = $redoOk; After = ($after -replace "`n", '\n') })
 }
 
-# ---------- 1) mover el cursor con las flechas a través del enlace ----------
-Reiniciar
-$malCursor = @()
+# ---------- 1) move the cursor with the arrows through the link ----------
+Reset-Doc
+$badCursor = @()
 [void](Sci $SCI_GOTOPOS 3)
 for ($i = 0; $i -lt 30; $i++) {
     [void](Sci $SCI_CHARRIGHT); Start-Sleep -Milliseconds 20
     $pos = Sci $SCI_GETCURRENTPOS
-    $esperadaMostrada = ($pos -ge 13 -and $pos -le 24)
-    $m = (SciMapaEstilos (SciTexto)).Split("`n")[0]
-    $hay = $m -match 'r'; $oculta = $m -match 'h'
-    if ($esperadaMostrada -and (-not $hay -or $oculta)) { $malCursor += "pos $pos debía estar mostrada: $m" }
-    if (-not $esperadaMostrada -and ($hay -or ($pos -ge 6 -and -not $oculta))) { $malCursor += "pos $pos debía estar oculta: $m" }
+    $expectShown = ($pos -ge 13 -and $pos -le 24)
+    $m = (SciStyleMap (SciText)).Split("`n")[0]
+    $any = $m -match 'r'; $hidden = $m -match 'h'
+    if ($expectShown -and (-not $any -or $hidden)) { $badCursor += "pos $pos should be shown: $m" }
+    if (-not $expectShown -and ($any -or ($pos -ge 6 -and -not $hidden))) { $badCursor += "pos $pos should be hidden: $m" }
 }
 for ($i = 0; $i -lt 30; $i++) {
     [void](Sci $SCI_CHARLEFT); Start-Sleep -Milliseconds 20
     $pos = Sci $SCI_GETCURRENTPOS
-    $esperadaMostrada = ($pos -ge 13 -and $pos -le 24)
-    $m = (SciMapaEstilos (SciTexto)).Split("`n")[0]
-    $hay = $m -match 'r'; $oculta = $m -match 'h'
-    if ($esperadaMostrada -and (-not $hay -or $oculta)) { $malCursor += "(<-) pos $pos debía estar mostrada: $m" }
-    if (-not $esperadaMostrada -and ($hay -or ($pos -ge 6 -and -not $oculta))) { $malCursor += "(<-) pos $pos debía estar oculta: $m" }
+    $expectShown = ($pos -ge 13 -and $pos -le 24)
+    $m = (SciStyleMap (SciText)).Split("`n")[0]
+    $any = $m -match 'r'; $hidden = $m -match 'h'
+    if ($expectShown -and (-not $any -or $hidden)) { $badCursor += "(<-) pos $pos should be shown: $m" }
+    if (-not $expectShown -and ($any -or ($pos -ge 6 -and -not $hidden))) { $badCursor += "(<-) pos $pos should be hidden: $m" }
 }
-Write-Host ("flechas: recorrer el enlace con -> y <- (60 pasos): " + $(if ($malCursor.Count -eq 0) { 'OK (la ruta se muestra mientras el cursor la toca y se oculta fuera)' } else { 'MAL' }))
-$malCursor | ForEach-Object { Write-Host "   $_" }
+Write-Host ("arrows: walk through the link with -> and <- (60 steps): " + $(if ($badCursor.Count -eq 0) { 'OK (the path is shown while the cursor touches it and hidden outside)' } else { 'BAD' }))
+$badCursor | ForEach-Object { Write-Host "   $_" }
 
-# ---------- 2) escribir, Retroceso y Suprimir con el cursor en cada posición ----------
+# ---------- 2) type, Backspace and Delete with the cursor at each position ----------
 foreach ($p in 3..27) {
-    Escenario 'escribir'   "escribir Z con el cursor en $p"   { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $WM_CHAR ([int][char]'Z') 0) }
-    Escenario 'retroceso'  "Retroceso con el cursor en $p"    { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $SCI_DELETEBACK) }
-    Escenario 'suprimir'   "Suprimir con el cursor en $p"     { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $SCI_CLEAR) }
+    Scenario 'type'      "type Z with the cursor at $p"        { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $WM_CHAR ([int][char]'Z') 0) }
+    Scenario 'backspace' "Backspace with the cursor at $p"     { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $SCI_DELETEBACK) }
+    Scenario 'delete'    "Delete with the cursor at $p"        { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $SCI_CLEAR) }
 }
 
-# ---------- 3) selecciones: escribir encima y suprimir ----------
-$puntos = 4, 6, 8, 12, 13, 15, 20, 24, 25, 27
-foreach ($a in $puntos) { foreach ($b in $puntos) { if ($b -gt $a) {
-    Escenario 'sel-escribir' "escribir Z sobre la selección $a..$b" { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $WM_CHAR ([int][char]'Z') 0) }
-    Escenario 'sel-suprimir' "Suprimir la selección $a..$b"        { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_CLEAR) }
-    Escenario 'sel-retroceso' "Retroceso con la selección $a..$b"  { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_DELETEBACK) }
+# ---------- 3) selections: type over and delete ----------
+$points = 4, 6, 8, 12, 13, 15, 20, 24, 25, 27
+foreach ($a in $points) { foreach ($b in $points) { if ($b -gt $a) {
+    Scenario 'sel-type'      "type Z over the selection $a..$b"       { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $WM_CHAR ([int][char]'Z') 0) }
+    Scenario 'sel-delete'    "Delete the selection $a..$b"            { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_CLEAR) }
+    Scenario 'sel-backspace' "Backspace with the selection $a..$b"    { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_DELETEBACK) }
 } } }
 
-# ---------- 4) copiar / cortar / pegar / sobrescribir (usa el portapapeles) ----------
-$sinPortapapeles = $SinPortapapeles.IsPresent
-$respaldo = $null
-if (-not $sinPortapapeles) {
+# ---------- 4) copy / cut / paste / overwrite (uses the clipboard) ----------
+$skipClipboard = $NoClipboard.IsPresent
+$saved = $null
+if (-not $skipClipboard) {
     Add-Type -AssemblyName System.Windows.Forms
-    $obj = [Windows.Forms.Clipboard]::GetDataObject()
-    $formatos = if ($obj) { @($obj.GetFormats($false)) } else { @() }
-    $soloTexto = ($formatos.Count -eq 0) -or (@($formatos | Where-Object { $_ -notin @('Text', 'UnicodeText', 'OEMText', 'System.String', 'Locale') }).Count -eq 0)
-    if (-not $soloTexto) { Write-Host 'portapapeles: contiene datos que no son texto; se omiten las pruebas de portapapeles'; $sinPortapapeles = $true }
-    elseif ($obj -and $obj.GetDataPresent([string])) { $respaldo = [Windows.Forms.Clipboard]::GetText() }
+    $data = [Windows.Forms.Clipboard]::GetDataObject()
+    $formats = if ($data) { @($data.GetFormats($false)) } else { @() }
+    $textOnly = ($formats.Count -eq 0) -or (@($formats | Where-Object { $_ -notin @('Text', 'UnicodeText', 'OEMText', 'System.String', 'Locale') }).Count -eq 0)
+    if (-not $textOnly) { Write-Host 'clipboard: it holds non-text data; the clipboard tests are skipped'; $skipClipboard = $true }
+    elseif ($data -and $data.GetDataPresent([string])) { $saved = [Windows.Forms.Clipboard]::GetText() }
 }
-if (-not $sinPortapapeles) {
-    foreach ($a in $puntos) { foreach ($b in $puntos) { if ($b -gt $a) {
-        Escenario 'cortar' "Cortar la selección $a..$b" { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_CUT) }
+if (-not $skipClipboard) {
+    foreach ($a in $points) { foreach ($b in $points) { if ($b -gt $a) {
+        Scenario 'cut' "Cut the selection $a..$b" { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_CUT) }
     } } }
-    # pegar sobre una selección y pegar con el cursor en cada posición; el texto pegado es "PEGADO"
-    [Windows.Forms.Clipboard]::SetText('PEGADO')
-    foreach ($a in $puntos) { foreach ($b in $puntos) { if ($b -gt $a) {
-        Escenario 'pegar-sobre' "Pegar sobre la selección $a..$b" { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_PASTE) }
+    # paste over a selection and paste with the cursor at each position; the pasted text is "PASTED"
+    [Windows.Forms.Clipboard]::SetText('PASTED')
+    foreach ($a in $points) { foreach ($b in $points) { if ($b -gt $a) {
+        Scenario 'paste-over' "Paste over the selection $a..$b" { [void](Sci $SCI_SETSEL $a $b) } { [void](Sci $SCI_PASTE) }
     } } }
     foreach ($p in 3..27) {
-        Escenario 'pegar' "Pegar con el cursor en $p" { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $SCI_PASTE) }
+        Scenario 'paste' "Paste with the cursor at $p" { [void](Sci $SCI_GOTOPOS $p) } { [void](Sci $SCI_PASTE) }
     }
-    # copiar no modifica: se comprueba que el texto no cambia y que se copia la ruta completa
-    Escenario 'copiar' 'Copiar la selección 4..27' { [void](Sci $SCI_SETSEL 4 27) } { [void](Sci $SCI_COPY) }
-    $copiado = [Windows.Forms.Clipboard]::GetText()
-    Write-Host ("copiar: el portapapeles recibe '" + $copiado + "' " + $(if ($copiado -like '*SECRETO-123*') { '(incluye la ruta oculta, como el resto del texto)' } else { '(NO incluye la ruta)' }))
-    if ($respaldo -ne $null) { [Windows.Forms.Clipboard]::SetText($respaldo) } else { [Windows.Forms.Clipboard]::Clear() }
+    # copying does not modify: it is checked that the text does not change and that the full path is copied
+    Scenario 'copy' 'Copy the selection 4..27' { [void](Sci $SCI_SETSEL 4 27) } { [void](Sci $SCI_COPY) }
+    $copied = [Windows.Forms.Clipboard]::GetText()
+    Write-Host ("copy: the clipboard receives '" + $copied + "' " + $(if ($copied -like '*SECRET-1234*') { '(it includes the hidden path, like the rest of the text)' } else { '(it does NOT include the path)' }))
+    if ($saved -ne $null) { [Windows.Forms.Clipboard]::SetText($saved) } else { [Windows.Forms.Clipboard]::Clear() }
 }
 
-# ---------- 5) buscar y reemplazar ----------
-# Reemplazar (un botón): la búsqueda selecciona el hallazgo y luego se reemplaza el destino.
-function Reemplazar-Uno([string]$buscar, [string]$por) {
-    [void](Sci 2198 0)   # SCI_SETSEARCHFLAGS 0: el diálogo de Notepad++ deja opciones activas
+# ---------- 5) find and replace ----------
+# Replace (one button): the search selects the match and then the target is replaced.
+function Replace-One([string]$find, [string]$with) {
+    [void](Sci 2198 0)   # SCI_SETSEARCHFLAGS 0: Notepad++'s dialog leaves options active
     [void](Sci $SCI_SETTARGETRANGE 0 (Sci $SCI_GETLENGTH))
-    $pos = SciCadena $SCI_SEARCHINTARGET ([Text.Encoding]::UTF8.GetByteCount($buscar)) $buscar
+    $pos = SciString $SCI_SEARCHINTARGET ([Text.Encoding]::UTF8.GetByteCount($find)) $find
     if ($pos -ge 0) {
-        $fin = $pos + [Text.Encoding]::UTF8.GetByteCount($buscar)
-        [void](Sci $SCI_SETSEL $pos $fin)             # "Buscar siguiente" selecciona el hallazgo
+        $end = $pos + [Text.Encoding]::UTF8.GetByteCount($find)
+        [void](Sci $SCI_SETSEL $pos $end)             # "Find next" selects the match
         Start-Sleep -Milliseconds 40
-        $script:mostradaAlCambiar = Ruta-Mostrada     # ¿se veía la ruta justo antes de reemplazar?
-        [void](Sci $SCI_SETTARGETRANGE $pos $fin)
-        [void](SciCadena $SCI_REPLACETARGET ([Text.Encoding]::UTF8.GetByteCount($por)) $por)
+        $script:shownAtChange = Path-Shown            # was the path visible right before replacing?
+        [void](Sci $SCI_SETTARGETRANGE $pos $end)
+        [void](SciString $SCI_REPLACETARGET ([Text.Encoding]::UTF8.GetByteCount($with)) $with)
     }
 }
-Escenario 'reemplazar' 'Reemplazar (un hallazgo seleccionado) CRETO por XX' { } { Reemplazar-Uno 'CRETO' 'XX' }
-Escenario 'reemplazar' 'Reemplazar el hallazgo "antes" (fuera de la ruta)'  { } { Reemplazar-Uno 'antes' 'ANTES' }
-# Reemplazar todo con el diálogo REAL de Notepad++: no selecciona nada, usa SCI_REPLACETARGET y
-# apaga los avisos de modificación. El plugin debe enterarse por NPPN_GLOBALMODIFIED.
-Escenario 'reemplazar-todo' 'Reemplazar todo (diálogo real) CRETO por XX' { } { Npp-ReemplazarTodoDialogo 'CRETO' 'XX' }
-Escenario 'reemplazar-todo' 'Reemplazar todo (diálogo real) "antes" por "ANTES" (fuera de la ruta)' { } { Npp-ReemplazarTodoDialogo 'antes' 'ANTES' }
-Escenario 'reemplazar-todo' 'Reemplazar todo (diálogo real) SECRETO-123 por nada' { } { Npp-ReemplazarTodoDialogo 'SECRETO-123' '' }
-# Por la vía de programación (otro plugin): sin aviso de Notepad++ no hay forma de enterarse. Se
-# anota como limitación conocida; no cuenta como falla del plugin.
-$limitacion = $null
-Write-Host ('  ' + (Get-Date -Format 'HH:mm:ss') + ' ... REPLACETARGET directo')
-Reiniciar
-$antesL = SciTexto
+Scenario 'replace' 'Replace (one selected match) ECRET with XX' { } { Replace-One 'ECRET' 'XX' }
+Scenario 'replace' 'Replace the match "start" (outside the path)'  { } { Replace-One 'start' 'START' }
+# Replace All with Notepad++'s REAL dialog: it selects nothing, uses SCI_REPLACETARGET and turns
+# off modification notifications. The plugin must find out through NPPN_GLOBALMODIFIED.
+Scenario 'replace-all' 'Replace All (real dialog) ECRET with XX' { } { Npp-ReplaceAllDialog 'ECRET' 'XX' }
+Scenario 'replace-all' 'Replace All (real dialog) "start" with "START" (outside the path)' { } { Npp-ReplaceAllDialog 'start' 'START' }
+Scenario 'replace-all' 'Replace All (real dialog) SECRET-1234 with nothing' { } { Npp-ReplaceAllDialog 'SECRET-1234' '' }
+# Through the programming route (another plugin): without a Notepad++ notice there is no way
+# to find out. It is noted as a known limitation; it does not count as a plugin failure.
+$limitation = $null
+Write-Host ('  ' + (Get-Date -Format 'HH:mm:ss') + ' ... direct REPLACETARGET')
+Reset-Doc
+$beforeL = SciText
 [void](Sci 2198 0)   # SCI_SETSEARCHFLAGS 0
 [void](Sci $SCI_SETTARGETRANGE 0 (Sci $SCI_GETLENGTH))
-$posL = SciCadena $SCI_SEARCHINTARGET 5 'CRETO'
-if ($posL -ge 0) {   # NUNCA usar -1 como posición: Scintilla se cae con un destino inválido
+$posL = SciString $SCI_SEARCHINTARGET 5 'ECRET'
+if ($posL -ge 0) {   # NEVER use -1 as a position: Scintilla crashes with an invalid target
     [void](Sci $SCI_SETTARGETRANGE $posL ($posL + 5))
-    [void](SciCadena $SCI_REPLACETARGET 2 'XX')
+    [void](SciString $SCI_REPLACETARGET 2 'XX')
 }
 Start-Sleep -Milliseconds 100
-$limitacion = 'REPLACETARGET directo (como haría otro plugin), sin aviso de Notepad++: ruta ' + $(if ($posL -lt 0) { 'no se pudo probar (la búsqueda no halló el texto)' } elseif ((SciTexto) -eq $antesL) { 'intacta' } else { 'CAMBIADA sin que se vea (limitación conocida)' })
+$limitation = 'direct REPLACETARGET (as another plugin would do), without a Notepad++ notice: path ' + $(if ($posL -lt 0) { 'could not be tested (the search did not find the text)' } elseif ((SciText) -eq $beforeL) { 'intact' } else { 'CHANGED without being visible (known limitation)' })
 
-# ---------- informe ----------
-$grupos = $resultados | Group-Object Grupo
+# ---------- report ----------
+$groups = $results | Group-Object Group
 Write-Host ''
-Write-Host ('{0,-16} {1,6} {2,9} {3,9} {4,9} {5,7}' -f 'grupo', 'casos', 'intacta', 'deshecho', 'visto', 'FALLA')
-foreach ($g in $grupos) {
+Write-Host ('{0,-16} {1,6} {2,9} {3,9} {4,9} {5,7}' -f 'group', 'cases', 'intact', 'undone', 'seen', 'FAIL')
+foreach ($g in $groups) {
     $c = $g.Group
     Write-Host ('{0,-16} {1,6} {2,9} {3,9} {4,9} {5,7}' -f $g.Name, $c.Count,
-        (@($c | Where-Object { $_.Veredicto -in 'OK intacta', 'OK igual' }).Count),
-        (@($c | Where-Object { $_.Veredicto -eq 'OK deshecho' }).Count),
-        (@($c | Where-Object { $_.Veredicto -in 'OK visto', 'OK expuesto' }).Count),
-        (@($c | Where-Object { $_.Veredicto -eq 'FALLA' }).Count))
+        (@($c | Where-Object { $_.Verdict -in 'OK intact', 'OK same' }).Count),
+        (@($c | Where-Object { $_.Verdict -eq 'OK undone' }).Count),
+        (@($c | Where-Object { $_.Verdict -in 'OK seen', 'OK exposed' }).Count),
+        (@($c | Where-Object { $_.Verdict -eq 'FAIL' }).Count))
 }
 Write-Host ''
-$malos = @($resultados | Where-Object { $_.Veredicto -eq 'FALLA' })
-foreach ($m in $malos | Select-Object -First 40) { Write-Host ("FALLA [{0}] {1}  -> {2}" -f $m.Grupo, $m.Nombre, $m.Despues) }
-$malUndo = @($resultados | Where-Object { -not $_.Undo -or -not $_.Redo })
-foreach ($m in $malUndo | Select-Object -First 20) { Write-Host ("DESHACER/REHACER no coincide [{0}] {1} (undo={2} redo={3})" -f $m.Grupo, $m.Nombre, $m.Undo, $m.Redo) }
-Write-Host ("nota: " + $limitacion)
-Write-Host ("RESUMEN: {0} escenarios, {1} FALLAS (ruta cambiada estando oculta), {2} con Deshacer/Rehacer distinto, {3} fallos de cursor" -f $resultados.Count, $fallos, $falloUndo, $malCursor.Count)
-$resultados | Export-Csv (Join-Path $work 'resultados.csv') -NoTypeInformation -Encoding UTF8
-Write-Host ('  ' + (Get-Date -Format 'HH:mm:ss') + ' ... cerrando; portatil vivo: ' + (-not $script:ProcNpp.HasExited))
-Npp-Cerrar
-if ($fallos -gt 0 -or $falloUndo -gt 0 -or $malCursor.Count -gt 0) { exit 1 }
+$badOnes = @($results | Where-Object { $_.Verdict -eq 'FAIL' })
+foreach ($m in $badOnes | Select-Object -First 40) { Write-Host ("FAIL [{0}] {1}  -> {2}" -f $m.Group, $m.Name, $m.After) }
+$badUndo = @($results | Where-Object { -not $_.Undo -or -not $_.Redo })
+foreach ($m in $badUndo | Select-Object -First 20) { Write-Host ("UNDO/REDO does not match [{0}] {1} (undo={2} redo={3})" -f $m.Group, $m.Name, $m.Undo, $m.Redo) }
+Write-Host ("note: " + $limitation)
+Write-Host ("SUMMARY: {0} scenarios, {1} FAILURES (path changed while hidden), {2} with different Undo/Redo, {3} cursor failures" -f $results.Count, $failures, $undoFailures, $badCursor.Count)
+$results | Export-Csv (Join-Path $work 'results.csv') -NoTypeInformation -Encoding UTF8
+Write-Host ('  ' + (Get-Date -Format 'HH:mm:ss') + ' ... closing; portable copy alive: ' + (-not $script:ProcNpp.HasExited))
+Npp-Close
+if ($failures -gt 0 -or $undoFailures -gt 0 -or $badCursor.Count -gt 0) { exit 1 }

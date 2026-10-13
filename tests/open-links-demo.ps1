@@ -1,67 +1,67 @@
-﻿# Genera pruebas\demo-enlaces.stdoer (con rutas absolutas a los archivos de tests\objetivos\,
-# calculadas aquí: lo versionado no lleva rutas de nadie) y abre el Notepad++ portátil con él a
-# la izquierda y la demostración de llaves (pruebas\demo-llaves.stdoer) a la derecha.
-# Los clics SÍ abren de verdad (pestañas, Explorador, programa de Windows para .ods).
+# Generates samples\links-demo.stdoer (with absolute paths to the files in tests\targets\,
+# computed here: what is versioned carries nobody's paths) and opens the portable Notepad++ with
+# it on the left and the braces demo (samples\braces-demo.stdoer) on the right.
+# The clicks DO open for real (tabs, Explorer, Windows' program for .ods).
 #
-# Uso (desde la carpeta stdoer):   .\tests\abrir-demo-enlaces.ps1
+# Usage (from the stdoer folder):   .\tests\open-links-demo.ps1
 
 $ErrorActionPreference = 'Stop'
-$raiz = Split-Path -Parent $PSScriptRoot
-$obj = Join-Path $raiz 'tests\objetivos'
-$pruebas = Join-Path $raiz 'pruebas'
-if (-not (Test-Path $pruebas)) { New-Item -ItemType Directory $pruebas | Out-Null }
+$root = Split-Path -Parent $PSScriptRoot
+$obj = Join-Path $root 'tests\targets'
+$samples = Join-Path $root 'samples'
+if (-not (Test-Path $samples)) { New-Item -ItemType Directory $samples | Out-Null }
 
 $demo = @"
-Demostración de enlaces (stdoer 0.5.0)
-Todo esto es inventado: los enlaces apuntan a archivos de prueba dentro de la carpeta del plugin.
-Pasa el mouse sobre un enlace (recuadro con la ruta) y haz clic sobre «link[]» para abrirlo.
-Clic DERECHO sobre un enlace: menú con Abrir, Abrir carpeta contenedora y Desactivar enlace
-(sobre uno desactivado, Activar enlace). Ctrl+Z deshace cada cambio con un solo paso.
+Links demo (stdoer 0.6.0)
+All of this is made up: the links point to test files inside the plugin's folder.
+Hover the mouse over a link (tooltip with the path) and click on "link[]" to open it.
+RIGHT click on a link: menu with Open, Open containing folder and Disable link
+(on a disabled one, Enable link). Ctrl+Z undoes each change in a single step.
 
-1. Texto: se abre en una pestaña de Notepad++
-   __link[$obj\texto.txt]
-2. Hoja de cálculo (.ods): con el programa que Windows tenga asignado (si no hay ninguno, se muestra su carpeta)
-   __link[$obj\hoja.ods]
-3. Carpeta: se abre en el Explorador
-   __link[$obj\carpeta]
-4. Ejecutable (.exe): NUNCA se ejecuta; se muestra su carpeta en el Explorador
-   __link[$obj\inofensivo.exe]
-5. Enlace roto (el archivo no existe): el recuadro lo dice y el clic no hace nada
-   __link[$obj\no-existe.txt]
-6. Enlace desactivado (un solo _ ): se ve completo y no hace nada
-   _link[$obj\texto.txt]
-7. Ruta con corchetes en el nombre: el último ] es el que cierra
-   __link[$obj\archivo [1].txt]
-8. Ruta relativa: no se abre (solo rutas completas)
-   __link[tests\objetivos\texto.txt]
-9. Sin extensión: solo se muestra su carpeta
-   __link[$obj\sinextension]
-10. Varios enlaces en una línea: __link[$obj\texto.txt] y __link[$obj\carpeta]
-11. Ruta de red que no responde (puede tardar hasta un segundo, nunca más): el recuadro dice que no hubo respuesta
-   __link[\\10.255.255.1\recurso\x.txt]
-12. Un enlace dentro de una región { } (al contraer, se esconde también la llave de cierre) {
-   Texto de la región.
-   __link[$obj\texto.txt]
+1. Text: opens in a Notepad++ tab
+   __link[$obj\text.txt]
+2. Spreadsheet (.ods): with the program Windows has assigned (if there is none, its folder is shown)
+   __link[$obj\sheet.ods]
+3. Folder: opens in Explorer
+   __link[$obj\folder]
+4. Executable (.exe): NEVER run; its folder is shown in Explorer
+   __link[$obj\harmless.exe]
+5. Broken link (the file does not exist): the tooltip says so and the click does nothing
+   __link[$obj\does-not-exist.txt]
+6. Disabled link (a single _ ): shown in full and does nothing
+   _link[$obj\text.txt]
+7. Path with brackets in the name: the last ] is the one that closes
+   __link[$obj\file [1].txt]
+8. Relative path: not opened (only full paths)
+   __link[tests\targets\text.txt]
+9. No extension: only its folder is shown
+   __link[$obj\noextension]
+10. Several links on one line: __link[$obj\text.txt] and __link[$obj\folder]
+11. Network path that does not respond (it may take up to a second, never more): the tooltip says there was no response
+   __link[\\10.255.255.1\share\x.txt]
+12. A link inside a { } region (when folded, the closing brace is hidden too) {
+   Text of the region.
+   __link[$obj\text.txt]
 }
-13. Dirección web (se abre en el navegador; el recuadro muestra la dirección sin tocar la red)
+13. Web address (opens in the browser; the tooltip shows the address without touching the network)
    __link[https://notepad-plus-plus.org/]
-14. Otra dirección web, con http
+14. Another web address, with http
    __link[http://example.com/]
-15. Esquema NO permitido (solo http y https se abren): el recuadro lo dice y el clic no hace nada
+15. Scheme NOT allowed (only http and https are opened): the tooltip says so and the click does nothing
    __link[javascript:alert(1)]
-16. Otro esquema no permitido (protocolo de un programa de Windows)
+16. Another scheme that is not allowed (a Windows program's protocol)
    __link[ms-settings:network]
 
-Para editar una ruta: borra un _ (queda _link[...] y la ruta se ve), edítala y vuelve a escribir el _.
-Con el cursor dentro de los corchetes, o con una selección que toque el enlace, la ruta se muestra sola.
-Al final de este archivo hay una línea con una { que no cierra nunca: no esconde nada. {
-Fin.
+To edit a path: delete one _ (it becomes _link[...] and the path is shown), edit it and type the _ again.
+With the cursor inside the brackets, or with a selection that touches the link, the path is shown by itself.
+At the end of this file there is a line with a { that never closes: it hides nothing. {
+End.
 "@
 $demoLf = $demo -replace "`r`n", "`n"
-$archivo = Join-Path $pruebas 'demo-enlaces.stdoer'
-[IO.File]::WriteAllText($archivo, $demoLf, (New-Object Text.UTF8Encoding $false))
+$file = Join-Path $samples 'links-demo.stdoer'
+[IO.File]::WriteAllText($file, $demoLf, (New-Object Text.UTF8Encoding $false))
 
-$llaves = Join-Path $pruebas 'demo-llaves.stdoer'
-Copy-Item (Join-Path $raiz 'tests\llaves\L23_demo.stdoer') $llaves -Force
+$braces = Join-Path $samples 'braces-demo.stdoer'
+Copy-Item (Join-Path $root 'tests\braces\L23_demo.stdoer') $braces -Force
 
-& (Join-Path $PSScriptRoot 'abrir-lado-a-lado.ps1') -Izq 'pruebas\demo-enlaces.stdoer' -Der 'pruebas\demo-llaves.stdoer'
+& (Join-Path $PSScriptRoot 'open-side-by-side.ps1') -Left 'samples\links-demo.stdoer' -Right 'samples\braces-demo.stdoer'

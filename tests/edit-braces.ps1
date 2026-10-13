@@ -1,14 +1,14 @@
-﻿# Prueba de EDICIÓN de la contracción con { }: sin forzar el coloreado, se borra/teclea
-# una llave en una copia (en memoria, sin guardar) y se comprueba que el plegado de TODAS
-# las líneas, también las anteriores al cambio, queda como corresponde.
+# EDITING test of the folding with { }: without forcing the coloring, a brace is deleted/typed
+# in a copy (in memory, unsaved) and it is checked that the folding of ALL the lines, also
+# those before the change, ends up as it should.
 #
-# Uso (desde la carpeta stdoer):   .\tests\editar-llaves.ps1
-# Solo usa el Notepad++ portátil. Trabaja sobre build\editar\L01_basico.stdoer y no guarda.
+# Usage (from the stdoer folder):   .\tests\edit-braces.ps1
+# It only uses the portable Notepad++. It works on build\edit\L01_basic.stdoer and does not save.
 
 $ErrorActionPreference = 'Stop'
-$raiz = Split-Path -Parent $PSScriptRoot
-$exe  = Join-Path $raiz 'npp-portable\notepad++.exe'
-$work = Join-Path $raiz 'build\editar'
+$root = Split-Path -Parent $PSScriptRoot
+$exe  = Join-Path $root 'npp-portable\notepad++.exe'
+$work = Join-Path $root 'build\edit'
 Add-Type -TypeDefinition @'
 using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
 public static class WinE {
@@ -30,41 +30,42 @@ $NPPM_GETNBOPENFILES = 0x400 + 1000 + 7
 
 if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory $work | Out-Null
-$doc = Join-Path $work 'L01_basico.stdoer'
-Copy-Item (Join-Path $raiz 'tests\llaves\L01_basico.stdoer') $doc
+$doc = Join-Path $work 'L01_basic.stdoer'
+Copy-Item (Join-Path $root 'tests\braces\L01_basic.stdoer') $doc
 $p = Start-Process $exe -ArgumentList @('-multiInst', '-nosession', ('"' + $doc + '"')) -PassThru
 $h = [IntPtr]::Zero
 for ($i = 0; $i -lt 60; $i++) { Start-Sleep -Milliseconds 500; $p.Refresh(); if ($p.MainWindowHandle -ne [IntPtr]::Zero) { $h = $p.MainWindowHandle; break } }
-if ($h -eq [IntPtr]::Zero) { throw 'No apareció la ventana' }
+if ($h -eq [IntPtr]::Zero) { throw 'The window did not appear' }
 for ($i = 0; $i -lt 60; $i++) { Start-Sleep -Milliseconds 500; if ((Send $h $NPPM_GETNBOPENFILES) -ge 1) { break } }
 Start-Sleep -Seconds 2
-$vista = ([WinE]::Scintillas($h))[0]
-function Niveles {
+$view = ([WinE]::Scintillas($h))[0]
+function Levels {
     Start-Sleep -Milliseconds 1500
-    $o = @(); $n = Send $vista $SCI_GETLINECOUNT
-    for ($k = 0; $k -lt $n; $k++) { $v = [int](Send $vista $SCI_GETFOLDLEVEL $k); $s = [string](($v -band 0xFFF) - 1024); if ($v -band 0x2000) { $s += 'H' }; $o += $s }
+    $o = @(); $n = Send $view $SCI_GETLINECOUNT
+    for ($k = 0; $k -lt $n; $k++) { $v = [int](Send $view $SCI_GETFOLDLEVEL $k); $s = [string](($v -band 0xFFF) - 1024); if ($v -band 0x2000) { $s += 'H' }; $o += $s }
     $o -join ' '
 }
-$mal = 0
-function Comprobar($nombre, $esperado) {
-    $obt = Niveles
-    $ok = ($obt -eq $esperado); if (-not $ok) { $script:mal++ }
-    Write-Host ("{0,-52} {1}" -f $nombre, $(if ($ok) { 'OK' } else { "MAL  esperado=[$esperado] obtenido=[$obt]" }))
+$bad = 0
+function Check($name, $expected) {
+    $got = Levels
+    $ok = ($got -eq $expected); if (-not $ok) { $script:bad++ }
+    Write-Host ("{0,-52} {1}" -f $name, $(if ($ok) { 'OK' } else { "BAD  expected=[$expected] got=[$got]" }))
 }
-# Texto: "Titulo {\nuno\ndos\n}\nfuera\n"  -> "}" en la posición 17; fin de "uno" en 12.
-Comprobar 'inicial (sin editar)' '0H 1 1 1 0 0'
-[void](Send $vista $SCI_DELETERANGE 17 1)
-Comprobar 'borrar la "}" -> "{" queda sin pareja y se ignora' '0 0 0 0 0 0'
-[void](Send $vista $SCI_UNDO)
-Comprobar 'deshacer -> vuelve la región' '0H 1 1 1 0 0'
-[void](Send $vista $SCI_GOTOPOS 12); [void](Send $vista $WM_CHAR ([int][char]'{') 0)
-Comprobar 'teclear "{" al final de "uno" (la "}" casa con esa)' '0 0H 1 1 0 0'
-[void](Send $vista $SCI_UNDO)
-Comprobar 'deshacer -> vuelve la región original' '0H 1 1 1 0 0'
-[void](Send $vista $SCI_GOTOPOS 12); [void](Send $vista $WM_CHAR ([int][char]'}') 0)
-Comprobar '"}" tecleada al final de "uno" (no es primer carácter)' '0H 1 1 1 0 0'
-Write-Host "RESUMEN: $mal fallos"
-# El documento quedó modificado (es una copia en build\editar, nunca se guarda): se termina el proceso
-# propio en vez de pedir el cierre normal, que abriría un aviso de guardar.
+# The text is a line ending in "{", two body lines, the closing "}" and one line after it:
+# the "}" is at position 17; the end of the first body line is at 12.
+Check 'initial (not edited)' '0H 1 1 1 0 0'
+[void](Send $view $SCI_DELETERANGE 17 1)
+Check 'delete the "}" -> "{" is left unmatched and ignored' '0 0 0 0 0 0'
+[void](Send $view $SCI_UNDO)
+Check 'undo -> the region comes back' '0H 1 1 1 0 0'
+[void](Send $view $SCI_GOTOPOS 12); [void](Send $view $WM_CHAR ([int][char]'{') 0)
+Check 'type "{" at the end of the first body line (the "}" pairs with it)' '0 0H 1 1 0 0'
+[void](Send $view $SCI_UNDO)
+Check 'undo -> the original region comes back' '0H 1 1 1 0 0'
+[void](Send $view $SCI_GOTOPOS 12); [void](Send $view $WM_CHAR ([int][char]'}') 0)
+Check '"}" typed at the end of the first body line (not first character)' '0H 1 1 1 0 0'
+Write-Host "SUMMARY: $bad failures"
+# The document was left modified (it is a copy in build\edit, never saved): the own process is
+# terminated instead of asking for a normal close, which would open a save prompt.
 Stop-Process -Id $p.Id -Force
-if ($mal -gt 0) { exit 1 }
+if ($bad -gt 0) { exit 1 }

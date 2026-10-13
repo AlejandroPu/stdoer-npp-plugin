@@ -1,63 +1,63 @@
-﻿# Comprueba que el ocultamiento de la ruta SOBREVIVE a lo que Notepad++ hace con los estilos:
-# cambiar de pestaña, cambiar el lenguaje del documento y reiniciar todos los estilos (lo que
-# hace al cambiar de tema, SCI_STYLECLEARALL). Y que, cuando el documento deja de ser .stdoer,
-# los números de estilo 50-52 vuelven a ser normales (otro lexer podría usarlos).
+# Checks that hiding the path SURVIVES what Notepad++ does with the styles: switching tabs,
+# changing the document's language and resetting all the styles (what it does when the theme
+# changes, SCI_STYLECLEARALL). And that, when the document stops being .stdoer, style numbers
+# 50-52 go back to normal (another lexer might use them).
 #
-# Uso (desde la carpeta stdoer):   .\tests\probar-persistencia-enlaces.ps1
+# Usage (from the stdoer folder):   .\tests\test-link-persistence.ps1
 
 $ErrorActionPreference = 'Stop'
-$script:Raiz = Split-Path -Parent $PSScriptRoot
-. (Join-Path $PSScriptRoot 'herramientas-npp.ps1')
+$script:Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'npp-tools.ps1')
 
-$work = Join-Path $Raiz 'build\persistencia'
+$work = Join-Path $Root 'build\persistence'
 if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory $work | Out-Null
-$docA = Join-Path $work 'enlace.stdoer'; $docB = Join-Path $work 'otro.txt'
-[IO.File]::WriteAllText($docA, "antes __link[ruta-secreta.txt] despues`n", (New-Object Text.UTF8Encoding $false))
-[IO.File]::WriteAllText($docB, "documento de texto normal`n", (New-Object Text.UTF8Encoding $false))
+$docA = Join-Path $work 'link.stdoer'; $docB = Join-Path $work 'other.txt'
+[IO.File]::WriteAllText($docA, "start __link[secret-paths.txt] end`n", (New-Object Text.UTF8Encoding $false))
+[IO.File]::WriteAllText($docB, "plain text document`n", (New-Object Text.UTF8Encoding $false))
 
-$mal = 0
-function Veredicto([string]$nombre, [bool]$ok, [string]$detalle = '') {
-    if (-not $ok) { $script:mal++ }
-    Write-Host ("{0,-72} {1}" -f $nombre, $(if ($ok) { 'OK' } else { "MAL  $detalle" }))
+$bad = 0
+function Verdict([string]$name, [bool]$ok, [string]$detail = '') {
+    if (-not $ok) { $script:bad++ }
+    Write-Host ("{0,-72} {1}" -f $name, $(if ($ok) { 'OK' } else { "BAD  $detail" }))
 }
-function Oculta { ((SciMapaEstilos (SciTexto)).Split("`n")[0]) -match '^\.{8}lllllh{16}l' }
-function Atributos { "vis50=$(Sci 2491 50) chg50=$(Sci 2492 50) hot52=$(Sci 2493 52)" }
-function Mover { [void](Sci 2025 0); Start-Sleep -Milliseconds 150 }
+function Hidden { ((SciStyleMap (SciText)).Split("`n")[0]) -match '^\.{8}lllllh{16}l' }
+function Attributes { "vis50=$(Sci 2491 50) chg50=$(Sci 2492 50) hot52=$(Sci 2493 52)" }
+function Nudge { [void](Sci 2025 0); Start-Sleep -Milliseconds 150 }
 
-Npp-Abrir @($docA, $docB)
-$a = (Npp-Documentos | Where-Object { $_.Ruta -eq $docA }).Indice
-$b = (Npp-Documentos | Where-Object { $_.Ruta -eq $docB }).Indice
-Npp-Activar $a; [void](Sci 4003 0 -1); Mover
-Veredicto 'inicio: ruta oculta, estilos puestos' ((Oculta) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) (Atributos)
+Npp-Open @($docA, $docB)
+$a = (Npp-Documents | Where-Object { $_.Path -eq $docA }).Index
+$b = (Npp-Documents | Where-Object { $_.Path -eq $docB }).Index
+Npp-Activate $a; [void](Sci 4003 0 -1); Nudge
+Verdict 'start: path hidden, styles set' ((Hidden) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) (Attributes)
 
-# 1) cambiar de pestaña y volver
-Npp-Activar $b; Start-Sleep -Milliseconds 300
-Veredicto 'en otra pestaña (.txt): los estilos 50-52 vuelven a ser normales' (((Sci 2491 50) -eq 1) -and ((Sci 2492 50) -eq 1) -and ((Sci 2493 52) -eq 0)) (Atributos)
-Npp-Activar $a; Start-Sleep -Milliseconds 400; Mover
-Veredicto 'al volver a la pestaña .stdoer: ruta oculta otra vez' ((Oculta) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) (Atributos + ' mapa=' + ((SciMapaEstilos (SciTexto)).Split("`n")[0]))
-for ($i = 0; $i -lt 5; $i++) { Npp-Activar $b; Npp-Activar $a; Start-Sleep -Milliseconds 150 }
-Mover
-Veredicto '5 idas y vueltas rápidas entre pestañas: sigue oculta' ((Oculta) -and (Sci 2491 50) -eq 0) (Atributos)
+# 1) switch tabs and come back
+Npp-Activate $b; Start-Sleep -Milliseconds 300
+Verdict 'in another tab (.txt): styles 50-52 are back to normal' (((Sci 2491 50) -eq 1) -and ((Sci 2492 50) -eq 1) -and ((Sci 2493 52) -eq 0)) (Attributes)
+Npp-Activate $a; Start-Sleep -Milliseconds 400; Nudge
+Verdict 'back on the .stdoer tab: path hidden again' ((Hidden) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) (Attributes + ' map=' + ((SciStyleMap (SciText)).Split("`n")[0]))
+for ($i = 0; $i -lt 5; $i++) { Npp-Activate $b; Npp-Activate $a; Start-Sleep -Milliseconds 150 }
+Nudge
+Verdict '5 quick round trips between tabs: still hidden' ((Hidden) -and (Sci 2491 50) -eq 0) (Attributes)
 
-# 2) reiniciar todos los estilos (lo que hace Notepad++ al cambiar de tema)
+# 2) reset all the styles (what Notepad++ does when the theme changes)
 [void](Sci 2050)    # SCI_STYLECLEARALL
 Start-Sleep -Milliseconds 100
-$tras = Atributos
-[void](Sci 2025 3); Start-Sleep -Milliseconds 300     # el siguiente movimiento del cursor repara los estilos
-Mover
-Veredicto 'tras reiniciar los estilos (STYLECLEARALL) y mover el cursor: oculta de nuevo' ((Oculta) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) ("inmediatamente tras reiniciar: $tras ; ahora: " + (Atributos))
+$after = Attributes
+[void](Sci 2025 3); Start-Sleep -Milliseconds 300     # the next cursor movement repairs the styles
+Nudge
+Verdict 'after resetting the styles (STYLECLEARALL) and moving the cursor: hidden again' ((Hidden) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) ("right after the reset: $after ; now: " + (Attributes))
 
-# 3) cambiar el lenguaje del documento a Python y volver a Stdoer
+# 3) change the document's language to Python and back to Stdoer
 $NPPM_SETCURRENTLANGTYPE = $NPPMSG + 6
 [void](NppMsg $NPPM_SETCURRENTLANGTYPE 0 22)           # L_PYTHON
-Start-Sleep -Milliseconds 600; [void](Sci 4003 0 -1); Mover
-$m = (SciMapaEstilos (SciTexto)).Split("`n")[0]
-Veredicto 'como Python: el texto se ve completo (nada oculto) y estilos normales' (($m -notmatch 'h') -and ((Sci 2491 50) -eq 1) -and ((Sci 2493 52) -eq 0)) ("mapa=$m " + (Atributos))
+Start-Sleep -Milliseconds 600; [void](Sci 4003 0 -1); Nudge
+$m = (SciStyleMap (SciText)).Split("`n")[0]
+Verdict 'as Python: the text is fully visible (nothing hidden) and styles normal' (($m -notmatch 'h') -and ((Sci 2491 50) -eq 1) -and ((Sci 2493 52) -eq 0)) ("map=$m " + (Attributes))
 [void](NppMsg $NPPM_SETCURRENTLANGTYPE 0 95)           # L_EXTERNAL (Stdoer)
-Start-Sleep -Milliseconds 800; [void](Sci 4003 0 -1); Mover
-Veredicto 'de vuelta a Stdoer: ruta oculta otra vez' ((Oculta) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) ("mapa=" + ((SciMapaEstilos (SciTexto)).Split("`n")[0]) + ' ' + (Atributos))
+Start-Sleep -Milliseconds 800; [void](Sci 4003 0 -1); Nudge
+Verdict 'back to Stdoer: path hidden again' ((Hidden) -and (Sci 2491 50) -eq 0 -and (Sci 2492 50) -eq 0) ("map=" + ((SciStyleMap (SciText)).Split("`n")[0]) + ' ' + (Attributes))
 
-Write-Host "RESUMEN: $mal fallos"
-Npp-Cerrar
-if ($mal -gt 0) { exit 1 }
+Write-Host "SUMMARY: $bad failures"
+Npp-Close
+if ($bad -gt 0) { exit 1 }

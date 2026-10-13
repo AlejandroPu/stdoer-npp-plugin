@@ -1,22 +1,22 @@
-﻿# Verifica la contracción con { } del lexer stdoer: abre en el Notepad++ portátil cada
-# tests\llaves\*.stdoer, fuerza el coloreado completo y compara el nivel de plegado
-# (SCI_GETFOLDLEVEL) de CADA línea con tests\llaves\<caso>.esperado.
+# Verifies the folding with { } of the stdoer lexer: opens in the portable Notepad++ each
+# tests\braces\*.stdoer, forces full coloring and compares the fold level
+# (SCI_GETFOLDLEVEL) of EVERY line with tests\braces\<case>.expected.
 #
-# Uso (desde la carpeta stdoer):   .\tests\verificar-llaves.ps1
+# Usage (from the stdoer folder):   .\tests\check-braces.ps1
 #
-# Formato de .esperado (una línea de texto, un token por línea del documento):
-#   <profundidad>[H]     profundidad = nivel - 1024; H = cabecera de pliegue (se puede contraer).
-# Los esperados están razonados a mano a partir de las reglas (src\Llaves.h), no sacados de
-# la salida del programa. Un documento sin llaves con pareja conserva los niveles de Python
-# (en un documento sin sangría, todos 0).
+# Format of .expected (one line of text, one token per document line):
+#   <depth>[H]     depth = level - 1024; H = fold header (it can be folded).
+# The expected values are worked out by hand from the rules (src\Braces.h), not taken from
+# the program's output. A document without matched braces keeps Python's levels
+# (in a document without indentation, all 0).
 #
-# - Usa SOLO el Notepad++ portátil (npp-portable), con -multiInst -nosession.
-# - No se modifica ningún documento (se trabaja sobre copias en build\llaves\).
+# - Uses ONLY the portable Notepad++ (npp-portable), with -multiInst -nosession.
+# - No document is modified (it works on copies in build\braces\).
 
 $ErrorActionPreference = 'Stop'
-$raiz = Split-Path -Parent $PSScriptRoot
-$exe  = Join-Path $raiz 'npp-portable\notepad++.exe'
-$work = Join-Path $raiz 'build\llaves'
+$root = Split-Path -Parent $PSScriptRoot
+$exe  = Join-Path $root 'npp-portable\notepad++.exe'
+$work = Join-Path $root 'build\braces'
 
 Add-Type -TypeDefinition @'
 using System;
@@ -51,79 +51,79 @@ $SCI_GETLENGTH = 2006; $SCI_GETLINECOUNT = 2154; $SCI_GETFOLDLEVEL = 2223; $SCI_
 
 if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory $work | Out-Null
-$casos = @(Get-ChildItem (Join-Path $raiz 'tests\llaves') -Filter *.stdoer | Sort-Object Name)
-$archivos = @()
-foreach ($f in $casos) {
+$cases = @(Get-ChildItem (Join-Path $root 'tests\braces') -Filter *.stdoer | Sort-Object Name)
+$files = @()
+foreach ($f in $cases) {
     $base = [IO.Path]::GetFileNameWithoutExtension($f.Name)
-    $copia = Join-Path $work $f.Name
-    Copy-Item $f.FullName $copia
-    $esp = (Get-Content (Join-Path $raiz "tests\llaves\$base.esperado") -Raw).Trim()
-    $archivos += [pscustomobject]@{ Base = $base; Ruta = $copia; Esperado = $esp }
+    $copy = Join-Path $work $f.Name
+    Copy-Item $f.FullName $copy
+    $exp = (Get-Content (Join-Path $root "tests\braces\$base.expected") -Raw).Trim()
+    $files += [pscustomobject]@{ Base = $base; Path = $copy; Expected = $exp }
 }
 
-$argsNpp = @('-multiInst', '-nosession') + ($archivos | ForEach-Object { '"' + $_.Ruta + '"' })
-$p = Start-Process $exe -ArgumentList $argsNpp -PassThru
+$nppArgs = @('-multiInst', '-nosession') + ($files | ForEach-Object { '"' + $_.Path + '"' })
+$p = Start-Process $exe -ArgumentList $nppArgs -PassThru
 $h = [IntPtr]::Zero
 for ($i = 0; $i -lt 60; $i++) { Start-Sleep -Milliseconds 500; $p.Refresh(); if ($p.MainWindowHandle -ne [IntPtr]::Zero) { $h = $p.MainWindowHandle; break } }
-if ($h -eq [IntPtr]::Zero) { throw 'No apareció la ventana de Notepad++ portátil' }
+if ($h -eq [IntPtr]::Zero) { throw 'The portable Notepad++ window did not appear' }
 
-$esperados = $archivos.Count; $n = 0
-for ($i = 0; $i -lt 120; $i++) { Start-Sleep -Milliseconds 500; $n = Send $h $NPPM_GETNBOPENFILES 0 0; if ($n -ge $esperados) { break } }
+$expectedCount = $files.Count; $n = 0
+for ($i = 0; $i -lt 120; $i++) { Start-Sleep -Milliseconds 500; $n = Send $h $NPPM_GETNBOPENFILES 0 0; if ($n -ge $expectedCount) { break } }
 Start-Sleep -Seconds 2
-Write-Host "Documentos abiertos: $n (esperados $esperados)"
-if ($n -lt $esperados) { throw 'No se abrieron todos los archivos' }
+Write-Host "Open documents: $n (expected $expectedCount)"
+if ($n -lt $expectedCount) { throw 'Not all the files were opened' }
 
 $sci = [WinL]::Scintillas($h)
-if ($sci.Count -lt 1) { throw 'No se encontró el Scintilla principal' }
-$vista = $sci[0]
+if ($sci.Count -lt 1) { throw 'The main Scintilla was not found' }
+$view = $sci[0]
 
-# Emparejar pestañas con archivos por longitud (puede haber una pestaña vacía extra).
-$longitudes = @()
+# Match tabs with files by length (there may be one extra empty tab).
+$lengths = @()
 for ($i = 0; $i -lt $n; $i++) {
     [void](Send $h $NPPM_ACTIVATEDOC 0 $i); Start-Sleep -Milliseconds 80
-    $longitudes += (Send $vista $SCI_GETLENGTH)
+    $lengths += (Send $view $SCI_GETLENGTH)
 }
-$desp = -1
-for ($d = 0; $d -le ($n - $esperados); $d++) {
-    $coincide = $true
-    for ($i = 0; $i -lt $esperados; $i++) { if ($longitudes[$i + $d] -ne (Get-Item $archivos[$i].Ruta).Length) { $coincide = $false; break } }
-    if ($coincide) { $desp = $d; break }
+$offset = -1
+for ($d = 0; $d -le ($n - $expectedCount); $d++) {
+    $allMatch = $true
+    for ($i = 0; $i -lt $expectedCount; $i++) { if ($lengths[$i + $d] -ne (Get-Item $files[$i].Path).Length) { $allMatch = $false; break } }
+    if ($allMatch) { $offset = $d; break }
 }
-if ($desp -lt 0) { throw 'No se pudo emparejar las pestañas con los archivos por longitud' }
+if ($offset -lt 0) { throw 'The tabs could not be matched with the files by length' }
 
 function Fmt([int]$v) {
     $s = [string](($v -band 0xFFF) - 1024)
     if ($v -band 0x2000) { $s += 'H' }
     $s
 }
-$ok = 0; $mal = 0
-$reporte = New-Object 'System.Collections.Generic.List[string]'
-$reporte.Add("Verificación de llaves — " + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
-for ($i = 0; $i -lt $esperados; $i++) {
-    [void](Send $h $NPPM_ACTIVATEDOC 0 ($i + $desp)); Start-Sleep -Milliseconds 80
-    [void](Send $vista $SCI_COLOURISE 0 -1)
-    $a = $archivos[$i]
+$ok = 0; $bad = 0
+$report = New-Object 'System.Collections.Generic.List[string]'
+$report.Add("Braces check - " + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+for ($i = 0; $i -lt $expectedCount; $i++) {
+    [void](Send $h $NPPM_ACTIVATEDOC 0 ($i + $offset)); Start-Sleep -Milliseconds 80
+    [void](Send $view $SCI_COLOURISE 0 -1)
+    $a = $files[$i]
     $lang = Send $h $NPPM_GETBUFFERLANGTYPE (Send $h $NPPM_GETCURRENTBUFFERID) 0
-    $lineas = Send $vista $SCI_GETLINECOUNT
-    $obt = @(); for ($k = 0; $k -lt $lineas; $k++) { $obt += (Fmt ([int](Send $vista $SCI_GETFOLDLEVEL $k))) }
-    $obtenido = $obt -join ' '
-    $bien = ($obtenido -eq $a.Esperado) -and ($lang -eq 95)
-    $estado = if ($bien) { 'OK' } else { 'MAL' }
-    $linea = "{0,-36} {1}" -f $a.Base, $estado
-    Write-Host $linea
-    $reporte.Add($linea)
-    if ($bien) { $ok++ } else {
-        $mal++
-        $reporte.Add("   lenguaje=$lang (esperado 95)")
-        $reporte.Add("   esperado: $($a.Esperado)")
-        $reporte.Add("   obtenido: $obtenido")
-        Write-Host "   esperado: $($a.Esperado)"; Write-Host "   obtenido: $obtenido"
+    $lineCount = Send $view $SCI_GETLINECOUNT
+    $got = @(); for ($k = 0; $k -lt $lineCount; $k++) { $got += (Fmt ([int](Send $view $SCI_GETFOLDLEVEL $k))) }
+    $actual = $got -join ' '
+    $good = ($actual -eq $a.Expected) -and ($lang -eq 95)
+    $state = if ($good) { 'OK' } else { 'BAD' }
+    $line = "{0,-36} {1}" -f $a.Base, $state
+    Write-Host $line
+    $report.Add($line)
+    if ($good) { $ok++ } else {
+        $bad++
+        $report.Add("   language=$lang (expected 95)")
+        $report.Add("   expected: $($a.Expected)")
+        $report.Add("   got:      $actual")
+        Write-Host "   expected: $($a.Expected)"; Write-Host "   got:      $actual"
     }
 }
-$reporte.Add("RESUMEN: $ok bien, $mal mal, de $esperados casos")
-$reporte | Set-Content -Encoding utf8 (Join-Path $work 'reporte.txt')
-Write-Host "RESUMEN: $ok bien, $mal mal, de $esperados casos"
+$report.Add("SUMMARY: $ok good, $bad bad, out of $expectedCount cases")
+$report | Set-Content -Encoding utf8 (Join-Path $work 'report.txt')
+Write-Host "SUMMARY: $ok good, $bad bad, out of $expectedCount cases"
 
 [void]$p.CloseMainWindow(); Start-Sleep -Seconds 2
-if (-not $p.HasExited) { Write-Host 'El portátil sigue abierto; ciérralo a mano.' }
-if ($mal -gt 0) { exit 1 }
+if (-not $p.HasExited) { Write-Host 'The portable copy is still open; close it by hand.' }
+if ($bad -gt 0) { exit 1 }

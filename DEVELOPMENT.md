@@ -4,14 +4,9 @@ Notepad++ plugin (C++, x64 Unicode DLL) for the custom language of `.stdoer` fil
 it is and how to install it → [`README.md`](README.md). This guide is for anyone who
 builds, tests or modifies it.
 
-> **Note:** in 0.5.0 the plugin's menus and messages, the code comments, the test
-> scripts and some file names are still in Spanish. Translating them is planned for the
-> next version. Menu items are given below in English, with the current Spanish label in
-> parentheses.
+**Status: 0.6.0.** It does the following:
 
-**Status: 0.5.0.** It does the following:
-
-- Menu *Plugins → Stdoer → About Stdoer* (*Acerca de Stdoer*).
+- Menu *Plugins → Stdoer → About Stdoer*.
 - **External lexer `stdoer`**, associated with the `.stdoer` extension, with no colors of
   its own (it uses those of the active Notepad++ theme, light, dark or any other):
   - folding by indentation identical to that of `.py` files;
@@ -62,7 +57,7 @@ builds, tests or modifies it.
   - Folder → File Explorer.
   - ⛔ **It never runs anything.** Executables, scripts, shortcuts and files with macros
     (`.exe .bat .cmd .ps1 .vbs .lnk .msi .jar .docm .xlsm` and many more; the full list
-    is in `src\Enlaces.cpp`), and files without an extension, **show their folder** in
+    is in `src\Links.cpp`), and files without an extension, **show their folder** in
     File Explorer. Everything else (`.ods`, `.xlsx`, `.html`, `.pdf`...) uses the program
     Windows has assigned, unless that association runs the file itself or does not exist
     (then its folder is shown too).
@@ -73,8 +68,8 @@ builds, tests or modifies it.
   turns off modification notifications; when it finishes it sends `NPPN_GLOBALMODIFIED`.
   The plugin keeps the list of paths of each document and, if a different path shows up
   after a "Replace All", it **shows those links** and adds an annotation below the line
-  (currently in Spanish: "the path of this link was changed without being visible...
-  Ctrl+Z undoes it"). It is removed on the next text change or when switching documents.
+  ("The path of this link was changed without being visible (it is now visible). Ctrl+Z
+  undoes it."). It is removed on the next text change or when switching documents.
   See "Known link limitations".
 - **Web addresses:** `__link[https://...]` or `__link[http://...]` opens in the default
   browser. ⛔ **Only `http` and `https`.** Any other scheme (`javascript:`, `file:`,
@@ -89,13 +84,12 @@ builds, tests or modifies it.
 - **Right-click menu** (the plugin intercepts `WM_CONTEXTMENU` in both Scintilla views; if
   there is no link under the mouse, the message goes on and the normal Notepad++ menu
   appears; with the Menu key / Shift+F10 the text cursor is used):
-  - on `__link[...]` (any character of the link, from `_` to `]`): **Open** (*Abrir*;
-    grayed out if it cannot open: relative or missing path, rejected scheme), **Open
-    containing folder** (*Abrir carpeta contenedora*; paths only; if the file does not
-    exist but its folder does, it opens the folder; grayed out if relative), **Disable
-    link** (*Desactivar enlace*);
+  - on `__link[...]` (any character of the link, from `_` to `]`): **Open**
+    (grayed out if it cannot open: relative or missing path, rejected scheme), **Open
+    containing folder** (paths only; if the file does not exist but its folder does, it
+    opens the folder; grayed out if relative), **Disable link**;
   - on `_link[...]` (a single `_` that does not follow another letter, digit or `_`, so
-    that `my_link[0]` does not count): **Enable link** (*Activar enlace*);
+    that `my_link[0]` does not count): **Enable link**;
   - **Open** follows the same rules as the click; it never runs anything;
   - **Enable / Disable** add or remove a `_` and are **the only thing the plugin writes to
     the document**: a single undo action (one Ctrl+Z), only on request, and only if the
@@ -119,7 +113,7 @@ builds, tests or modifies it.
 ### Known link limitations
 
 - **Cut / copy / paste** were tested with the real clipboard (the script saves it and
-  restores it if it holds only text): 0 hidden changes (`tests\seguridad-enlaces.ps1`, 331
+  restores it if it holds only text): 0 hidden changes (`tests\link-safety.ps1`, 331
   scenarios in total; run it with `powershell -STA`, which the clipboard requires).
 - **Another plugin** that replaces text programmatically (`SCI_REPLACETARGET`) without
   going through "Replace All" can change a hidden path without warning. "Replace in Files"
@@ -139,7 +133,7 @@ builds, tests or modifies it.
 ## Requirements
 
 - Visual Studio or its Build Tools, with C++ x64 (MSVC + Windows SDK); tested with Build
-  Tools 2026. `compilar.cmd` finds it by itself with `vswhere` (see `buscar-vc.cmd`); to
+  Tools 2026. `build.cmd` finds it by itself with `vswhere` (see `find-vc.cmd`); to
   use another one: `set STDOER_VCVARS=<path to vcvars64.bat>`.
 - Portable Notepad++ 8.8.2 x64 in `npp-portable\` (not in git; see below).
 
@@ -148,7 +142,7 @@ builds, tests or modifies it.
 From this folder, in PowerShell or `cmd`:
 
 ```
-.\compilar.cmd
+.\build.cmd
 ```
 
 It produces `build\Stdoer.dll` (it only deletes `build\obj\` and the previous DLL; the
@@ -159,7 +153,7 @@ rest of `build\`, where the tests leave their copies, is not touched). All sourc
 ## Installing in the portable Notepad++
 
 ```
-.\instalar.cmd
+.\install.cmd
 ```
 
 It copies two files to the portable copy; it **never** touches
@@ -190,70 +184,70 @@ like plain text).
 To see a `.py` file and its `.stdoer` copy side by side (left `.py`, right `.stdoer`):
 
 ```
-.\tests\abrir-lado-a-lado.ps1 -Base pruebas\muestra-personal
+.\tests\open-side-by-side.ps1 -Base samples\personal-sample
 ```
 
 (`-Base` is the path without extension; `<Base>.py` and `<Base>.stdoer` must exist. Also
-`-Izq <file> -Der <file>` for any two files.)
+`-Left <file> -Right <file>` for any two files.)
 
-Links and braces demo (generates `pruebas\demo-enlaces.stdoer` with paths to
-`tests\objetivos\` and opens it next to the braces demo):
+Links and braces demo (generates `samples\links-demo.stdoer` with paths to
+`tests\targets\` and opens it next to the braces demo):
 
 ```
-.\tests\abrir-demo-enlaces.ps1
+.\tests\open-links-demo.ps1
 ```
 
 ## Tests
 
-They all use **only the portable copy**, one instance at a time (`tests\herramientas-npp.ps1`
+They all use **only the portable copy**, one instance at a time (`tests\npp-tools.ps1`
 closes any stdoer portable copy left open and starts it without the Windows error dialog).
 They write their copies to `build\<name>\`.
 
 ```
-.\tests\comparar-plegado.ps1
+.\tests\compare-folding.ps1
 ```
 
-Opens in the portable copy each case in `tests\casos\*.py` (made up) and each
-`pruebas\*.py` (personal copies, outside git) as `.py` and as `.stdoer`, and compares,
+Opens in the portable copy each case in `tests\cases\*.py` (made up) and each
+`samples\*.py` (personal copies, outside git) as `.py` and as `.stdoer`, and compares,
 line by line, the fold level Notepad++ gives (`SCI_GETFOLDLEVEL`). Everything must be
-**identical** (exit code 0). It writes the details to `build\cmp\reporte.txt`. Any change
+**identical** (exit code 0). It writes the details to `build\cmp\report.txt`. Any change
 to the lexer must pass this test again. (The cases with **unmatched** braces, braces in
 the middle of sentences or with links also go here: they must stay identical to Python.)
 
 ```
-.\tests\verificar-llaves.ps1
+.\tests\check-braces.ps1
 ```
 
-Opens each `tests\llaves\*.stdoer` and compares the level of **every line** with its
-`.esperado` (depth and `H` = header; reasoned by hand, not copied from the output; the one
+Opens each `tests\braces\*.stdoer` and compares the level of **every line** with its
+`.expected` (depth and `H` = header; reasoned by hand, not copied from the output; the one
 for `L23_demo` was set by reviewing the output line by line). Everything must be OK.
 
 ```
-.\tests\editar-llaves.ps1
+.\tests\edit-braces.ps1
 ```
 
 Editing test on an in-memory copy: delete/type a brace and check that the whole document
 is refolded, including the lines before the change.
 
 ```
-.\tests\probar-enlaces.ps1
+.\tests\test-links.ps1
 ```
 
-For each `tests\enlaces\*.stdoer`, the style of **every byte** against its `.esperado`
+For each `tests\links\*.stdoer`, the style of **every byte** against its `.expected`
 (hand-made map: `l` clickable area, `h` hidden path, `r` visible path, `.` other); style
 attributes; and show/hide depending on the cursor and the selection.
 
 ```
-.\tests\probar-clic-enlaces.ps1
+.\tests\test-link-clicks.ps1
 ```
 
-Click (simulated mouse) and tooltip on links to the files in `tests\objetivos\`, reading
-the plugin's log. With `STDOER_SIN_SHELL` the plugin logs what it would open **without**
+Click (simulated mouse) and tooltip on links to the files in `tests\targets\`, reading
+the plugin's log. With `STDOER_NO_SHELL` the plugin logs what it would open **without**
 calling Windows. It includes a network path that does not respond (the click must return
 in ~1 s).
 
 ```
-.\tests\seguridad-enlaces.ps1 [-SinPortapapeles]
+.\tests\link-safety.ps1 [-NoClipboard]
 ```
 
 Safety sweep of the hidden text (331 scenarios with the clipboard, 215 without it):
@@ -262,13 +256,13 @@ replace, "Replace All" with the real dialog, Undo/Redo. Criterion: no action cha
 hidden path without it being visible.
 
 ```
-.\tests\probar-persistencia-enlaces.ps1
+.\tests\test-link-persistence.ps1
 ```
 
 Hiding survives switching tabs, switching language and resetting the styles.
 
 ```
-.\tests\probar-temas.ps1
+.\tests\test-themes.ps1
 ```
 
 Theme colors: opens the portable copy with 8 configurations (light, dark mode with two
@@ -279,7 +273,7 @@ theme's, that the visible path is the midpoint, and that the hover color contras
 saves `npp-portable\config.xml` to `build\config-original.xml` and always restores it.
 
 ```
-.\tests\probar-menu.ps1
+.\tests\test-menu.ps1
 ```
 
 Right-click menu through the real path (`WM_CONTEXTMENU`, real popup menu read with
@@ -288,24 +282,24 @@ outside a link, each option, Enable/Disable with a single Undo, read-only, and t
 from the keyboard.
 
 ```
-.\tests\probar-web.ps1
+.\tests\test-web.ps1
 ```
 
 Web addresses and schemes: ~70 cases (http/https that open; `javascript:`, `file:`,
 `ms-settings:`, malformed addresses, with dangerous characters or too long, that do not).
-With `STDOER_SIN_SHELL`: none actually opens anything.
+With `STDOER_NO_SHELL`: none actually opens anything.
 
-`pruebas\` is in `.gitignore`: copies of personal documents go there. Nothing personal
+`samples\` is in `.gitignore`: copies of personal documents go there. Nothing personal
 goes into versioned files (no paths or names of personal documents). The files in
-`tests\objetivos\` are made up; the scripts that create links to them compute the full
-path at run time and write the result to `build\` or `pruebas\`.
+`tests\targets\` are made up; the scripts that create links to them compute the full
+path at run time and write the result to `build\` or `samples\`.
 
 Test environment variables (only the test scripts set them): `STDOER_LOG=<file>` (the
-plugin logs what it does) and `STDOER_SIN_SHELL=1` (it does not call Windows; it also
+plugin logs what it does) and `STDOER_NO_SHELL=1` (it does not call Windows; it also
 enables the private `NPPM_MSGTOPLUGIN` message the tests use: 1 = tooltip, 2 = log the
 menu options, 3 = left click, 11..14 = choose Open / Folder / Disable / Enable).
 
-`tests\unit\correr.cmd` builds and runs unit tests of the link parser; it creates a
+`tests\unit\run.cmd` builds and runs unit tests of the link parser; it creates a
 standalone `.exe` that some antivirus programs flag heuristically: it is not used in the
 normal workflow (the same rules are tested through the portable copy).
 
@@ -313,7 +307,7 @@ normal workflow (the same rules are tested through the portable copy).
 
 - `src\StdoerLexer.cxx` exports `GetLexerCount`, `GetLexerName` and `CreateLexer` (the
   Lexilla interface Notepad++ looks for in plugins). `CreateLexer("stdoer")` returns a
-  **layer** (`LexerStdoer`) that wraps Lexilla's Python lexer
+  **layer** (`StdoerLexer`) that wraps Lexilla's Python lexer
   (`third_party\lexilla\lexers\LexPython.cxx`, unmodified) with the folding properties
   Notepad++ sets for Python (`fold`, `fold.compact=0`, `fold.quotes.python=1`). Nobody
   sets them for an external lexer, so they are set here. The layer delegates everything
@@ -321,14 +315,14 @@ normal workflow (the same rules are tested through the portable copy).
 - **Python does not see link paths:** the document it receives is a "shadow document"
   that forwards everything to the real one but replaces the bytes of each link path with
   `x`. That way quotes, `#` or `'''` inside a path do not change its coloring or folding.
-- **`Lex`:** Python colors the range over the text without paths; then `EstilarEnlaces`
+- **`Lex`:** Python colors the range over the text without paths; then `StyleLinks`
   gives each link in those lines style 52 for `link[` and `]`, and 50 or 51 for the path
   (51 if the cursor or the selection touches it, or it is "exposed"; state shared with the
-  plugin in `Enlaces.cpp`). The "styled up to" position is returned at the end of the
+  plugin in `Links.cpp`). The "styled up to" position is returned at the end of the
   range so that Scintilla does not ask for the same thing again.
-- **How folding is computed (`LexerStdoer::Fold`):** (1) Python computes folding by
+- **How folding is computed (`StdoerLexer::Fold`):** (1) Python computes folding by
   indentation for the whole document against the shadow document, which records the
-  levels instead of writing them; (2) `src\Llaves.cpp` looks at the text, matches the
+  levels instead of writing them; (2) `src\Braces.cpp` looks at the text, matches the
   braces and rewrites the levels with a stack of frames (a `{ }` region or an indentation
   block), giving each line the level 1024 + the frames around it; (3) they are written to
   the document. Without matched braces, Python's levels are written as they are. The
@@ -336,7 +330,7 @@ normal workflow (the same rules are tested through the portable copy).
   depends on distant text, and deleting a `}` changes the folding of earlier lines.
   Measured with 1.6 MB and 120,000 lines: ~70 ms per keystroke, the same as a `.py` file.
 - Equivalence with Python without braces: the same Python lexer code, unmodified
-  (`tests\comparar-plegado.ps1`). Note: the lexer always measures indentation with
+  (`tests\compare-folding.ps1`). Note: the lexer always measures indentation with
   **tab = 8 columns**, regardless of the tab width set in Notepad++ (Python behaves the
   same way).
 - If folding or links are modified, the tests in `tests\` must be passed again.
@@ -356,19 +350,19 @@ extracted into `npp-portable\`. It is in `.gitignore`.
 - `src\Stdoer.cpp` — plugin: menu and plugin entry points (own code).
 - `src\StdoerLexer.cxx` — external lexer entry points, the layer over Python and the
   shadow document (own code).
-- `src\Llaves.h`, `src\Llaves.cpp` — `{ }` rules, independent of Scintilla (own code).
-- `src\Enlaces.h`, `src\Enlaces.cpp` — link parser, file classification and shared state,
+- `src\Braces.h`, `src\Braces.cpp` — `{ }` rules, independent of Scintilla (own code).
+- `src\Links.h`, `src\Links.cpp` — link parser, file classification and shared state,
   independent of Scintilla (own code).
-- `src\EnlacesUI.h`, `src\EnlacesUI.cpp` — view styles, showing the path, tooltip, click,
+- `src\LinksUI.h`, `src\LinksUI.cpp` — view styles, showing the path, tooltip, click,
   opening and the warning after "Replace All" (own code).
 - `config\Stdoer.xml` — lexer registration in Notepad++.
 - `third_party\plugintemplate\` — plugin interface headers (GPL v2+, unmodified).
   `third_party\lexilla\` — Lexilla 5.4.5 (HPND, unmodified). Origin and licenses in
   [`third_party\ORIGIN.md`](third_party/ORIGIN.md).
-- `compilar.cmd`, `instalar.cmd` — build and install in the portable copy;
-  `buscar-vc.cmd` — finds the compiler.
+- `build.cmd`, `install.cmd` — build and install in the portable copy;
+  `find-vc.cmd` — finds the compiler.
 - [`LICENSE`](LICENSE) — GNU GPL v2.
-- `tests\` — the test scripts, `herramientas-npp.ps1` (helpers), the made-up cases
-  `casos\`, `llaves\`, `enlaces\`, the test files `objetivos\` and `unit\`.
-- `build\` — build and test output; `pruebas\` — personal copies and demos. Both outside
+- `tests\` — the test scripts, `npp-tools.ps1` (helpers), the made-up cases
+  `cases\`, `braces\`, `links\`, the test files `targets\` and `unit\`.
+- `build\` — build and test output; `samples\` — personal copies and demos. Both outside
   git.

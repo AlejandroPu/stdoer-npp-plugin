@@ -1,174 +1,175 @@
-﻿# Comprueba que un documento .stdoer toma los colores del TEMA activo de Notepad++ (el defecto
-# de 0.4.0: sangría y fin de línea con fondo blanco en temas oscuros). Se MIDE, no se mira:
-#   - fondo de cada estilo usado por el documento == fondo del estilo por defecto del tema;
-#   - color de texto de cada estilo (salvo la ruta visible) == color por defecto del tema;
-#   - la ruta visible (51) == punto medio entre texto y fondo; el color al pasar el mouse
-#     contrasta con el fondo; ningún estilo con relleno de fin de línea;
-#   - el estilo 0 coincide con el de un .txt abierto en la misma ventana.
-# Parte A: arranque con cada configuración (claro, modo oscuro, temas de los que trae Notepad++).
-# Parte B: cambio de tema EN CALIENTE con el documento abierto, desde el Configurador de estilos
-#          (lo que hace el usuario), con ida y vuelta entre pestañas.
-# Parte C: modo oscuro / modo claro EN CALIENTE desde Preferencias (Light mode / Dark mode).
+# Checks that a .stdoer document takes the colors of the ACTIVE Notepad++ THEME (the 0.4.0
+# defect: indentation and end of line with a white background in dark themes). It is MEASURED,
+# not eyeballed:
+#   - background of each style used by the document == background of the theme's default style;
+#   - text color of each style (except the visible path) == the theme's default color;
+#   - the visible path (51) == midpoint between text and background; the color on mouse hover
+#     contrasts with the background; no style with end-of-line fill;
+#   - style 0 matches that of a .txt opened in the same window.
+# Part A: start with each configuration (light, dark mode, themes that Notepad++ ships).
+# Part B: HOT theme change with the document open, from the Style Configurator (what the user
+#         does), with round trips between tabs.
+# Part C: HOT dark mode / light mode from Preferences (Light mode / Dark mode).
 #
-# Toca npp-portable\config.xml (copia portátil, NO %AppData%): guarda el original en
-# build\config-original.xml y lo restaura al terminar, pase lo que pase.
+# It touches npp-portable\config.xml (portable copy, NOT %AppData%): it saves the original in
+# build\config-original.xml and restores it at the end, whatever happens.
 #
-# Uso (desde la carpeta stdoer):   .\tests\probar-temas.ps1
+# Usage (from the stdoer folder):   .\tests\test-themes.ps1
 
 $ErrorActionPreference = 'Stop'
-$script:Raiz = Split-Path -Parent $PSScriptRoot
-. (Join-Path $PSScriptRoot 'herramientas-npp.ps1')
+$script:Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'npp-tools.ps1')
 
-$cfg = Join-Path $Raiz 'npp-portable\config.xml'
-$respaldo = Join-Path $Raiz 'build\config-original.xml'
-$work = Join-Path $Raiz 'build\temas'
+$cfg = Join-Path $Root 'npp-portable\config.xml'
+$backup = Join-Path $Root 'build\config-original.xml'
+$work = Join-Path $Root 'build\themes'
 if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory $work | Out-Null
-$obj = Join-Path $Raiz 'tests\objetivos'
-$docS = Join-Path $work 'tema.stdoer'; $docT = Join-Path $work 'tema.txt'
-$contenido = @"
+$obj = Join-Path $Root 'tests\targets'
+$docS = Join-Path $work 'theme.stdoer'; $docT = Join-Path $work 'theme.txt'
+$content = @"
 def f():
-    x = 1  # comentario
-    y = "texto"
-    __link[$obj\texto.txt] y _link[x] muerto
+    x = 1  # comment
+    y = "text"
+    __link[$obj\text.txt] y _link[x] disabled
     __link[https://notepad-plus-plus.org/]
 
     {
         z = 2
     }
 "@ -replace "`r`n", "`n"
-[IO.File]::WriteAllText($docS, $contenido + "`n", (New-Object Text.UTF8Encoding $false))
-[IO.File]::WriteAllText($docT, "texto plano`n    con sangria`n", (New-Object Text.UTF8Encoding $false))
+[IO.File]::WriteAllText($docS, $content + "`n", (New-Object Text.UTF8Encoding $false))
+[IO.File]::WriteAllText($docT, "plain text`n    with indentation`n", (New-Object Text.UTF8Encoding $false))
 
-if (-not (Test-Path $respaldo)) { Copy-Item $cfg $respaldo }   # el original, una sola vez
+if (-not (Test-Path $backup)) { Copy-Item $cfg $backup }   # the original, only once
 
-$mal = 0
-function Veredicto([string]$nombre, [bool]$ok, [string]$detalle = '') {
-    if (-not $ok) { $script:mal++ }
-    Write-Host ("{0,-86} {1}" -f $nombre, $(if ($ok) { 'OK' } else { "MAL  $detalle" }))
+$bad = 0
+function Verdict([string]$name, [bool]$ok, [string]$detail = '') {
+    if (-not $ok) { $script:bad++ }
+    Write-Host ("{0,-86} {1}" -f $name, $(if ($ok) { 'OK' } else { "BAD  $detail" }))
 }
-function Hex([int64]$c) { '{0:X2}{1:X2}{2:X2}' -f ($c -band 0xFF), (($c -shr 8) -band 0xFF), (($c -shr 16) -band 0xFF) }   # BGR de Scintilla -> RRGGBB
-function Canal([int64]$c, [int]$i) { ($c -shr (8 * $i)) -band 0xFF }
-function Medio([int]$x, [int]$y) { [int][Math]::Floor(($x + $y) / 2) }      # división entera, como en el plugin (C++)
-function Mezcla([int64]$a, [int64]$b) { (Medio (Canal $a 0) (Canal $b 0)) -bor ((Medio (Canal $a 1) (Canal $b 1)) -shl 8) -bor ((Medio (Canal $a 2) (Canal $b 2)) -shl 16) }
-function Brillo([int64]$c) { ((Canal $c 0) * 299 + (Canal $c 1) * 587 + (Canal $c 2) * 114) / 1000 }
+function Hex([int64]$c) { '{0:X2}{1:X2}{2:X2}' -f ($c -band 0xFF), (($c -shr 8) -band 0xFF), (($c -shr 16) -band 0xFF) }   # Scintilla BGR -> RRGGBB
+function Channel([int64]$c, [int]$i) { ($c -shr (8 * $i)) -band 0xFF }
+function Half([int]$x, [int]$y) { [int][Math]::Floor(($x + $y) / 2) }      # integer division, as in the plugin (C++)
+function Blend([int64]$a, [int64]$b) { (Half (Channel $a 0) (Channel $b 0)) -bor ((Half (Channel $a 1) (Channel $b 1)) -shl 8) -bor ((Half (Channel $a 2) (Channel $b 2)) -shl 16) }
+function Brightness([int64]$c) { ((Channel $c 0) * 299 + (Channel $c 1) * 587 + (Channel $c 2) * 114) / 1000 }
 
-function Config([string]$modoOscuro, [string]$tema = '', [string]$oscuroNombre = '') {
-    $x = Get-Content $respaldo -Raw -Encoding UTF8
-    $x = $x -replace '(<GUIConfig name="DarkMode" enable=")(yes|no)', ('${1}' + $modoOscuro)
-    if ($oscuroNombre -ne '') { $x = $x -replace 'darkThemeName="[^"]*"', ('darkThemeName="' + $oscuroNombre + '"') }
-    if ($tema -ne '') { $x = $x -replace 'lightThemeName="[^"]*"', ('lightThemeName="' + $tema + '"') }
+function Config([string]$darkMode, [string]$theme = '', [string]$darkName = '') {
+    $x = Get-Content $backup -Raw -Encoding UTF8
+    $x = $x -replace '(<GUIConfig name="DarkMode" enable=")(yes|no)', ('${1}' + $darkMode)
+    if ($darkName -ne '') { $x = $x -replace 'darkThemeName="[^"]*"', ('darkThemeName="' + $darkName + '"') }
+    if ($theme -ne '') { $x = $x -replace 'lightThemeName="[^"]*"', ('lightThemeName="' + $theme + '"') }
     [IO.File]::WriteAllText($cfg, $x, (New-Object Text.UTF8Encoding $false))
 }
 
-# Mide el documento .stdoer (pestaña $iS) y compara con el .txt (pestaña $iT).
-function Medir([string]$etiqueta, [int]$iS, [int]$iT) {
-    Npp-Activar $iS; Start-Sleep -Milliseconds 500
-    [void](Sci 4003 0 -1); [void](Sci 2025 0); Start-Sleep -Milliseconds 400     # colorear todo; cursor al inicio
-    $texto = SciTexto
-    $bytes = [Text.Encoding]::UTF8.GetByteCount($texto)
-    $usados = @{}
-    for ($i = 0; $i -lt $bytes; $i++) { $usados[[int](Sci 2010 $i)] = $true }
-    $db = Sci 2482 32; $df = Sci 2481 32                                           # fondo y texto del estilo por defecto
-    $malos = @()
-    foreach ($e in ($usados.Keys | Sort-Object)) {
-        if ($e -eq 50) { continue }                                                # la ruta oculta no se dibuja
+# Measures the .stdoer document (tab $iS) and compares with the .txt (tab $iT).
+function Measure-Theme([string]$label, [int]$iS, [int]$iT) {
+    Npp-Activate $iS; Start-Sleep -Milliseconds 500
+    [void](Sci 4003 0 -1); [void](Sci 2025 0); Start-Sleep -Milliseconds 400     # color everything; cursor at the start
+    $text = SciText
+    $bytes = [Text.Encoding]::UTF8.GetByteCount($text)
+    $used = @{}
+    for ($i = 0; $i -lt $bytes; $i++) { $used[[int](Sci 2010 $i)] = $true }
+    $db = Sci 2482 32; $df = Sci 2481 32                                           # background and text of the default style
+    $wrong = @()
+    foreach ($e in ($used.Keys | Sort-Object)) {
+        if ($e -eq 50) { continue }                                                # the hidden path is not drawn
         $b = Sci 2482 $e; $f = Sci 2481 $e
-        if ($b -ne $db) { $malos += "estilo ${e}: fondo $(Hex $b) != tema $(Hex $db)" }
-        if ($e -ne 51 -and $f -ne $df) { $malos += "estilo ${e}: texto $(Hex $f) != tema $(Hex $df)" }
-        if ((Sci 2487 $e) -ne 0) { $malos += "estilo ${e}: con relleno de fin de línea" }
+        if ($b -ne $db) { $wrong += "style ${e}: background $(Hex $b) != theme $(Hex $db)" }
+        if ($e -ne 51 -and $f -ne $df) { $wrong += "style ${e}: text $(Hex $f) != theme $(Hex $df)" }
+        if ((Sci 2487 $e) -ne 0) { $wrong += "style ${e}: with end-of-line fill" }
     }
-    Veredicto "$etiqueta | fondo y texto de los $($usados.Count) estilos usados = tema (fondo $(Hex $db), texto $(Hex $df))" ($malos.Count -eq 0) ($malos -join '; ')
-    # ruta visible (51): medio camino entre texto y fondo (se fuerza a mostrarse con el cursor sobre la ruta)
-    $iniRuta = [Text.Encoding]::UTF8.GetByteCount($texto.Substring(0, $texto.IndexOf('texto.txt')))
-    [void](Sci 2025 $iniRuta); Start-Sleep -Milliseconds 400
-    $f51 = Sci 2481 51; $esp = Mezcla $df $db
-    Veredicto "$etiqueta | ruta visible (51) = medio camino texto/fondo ($(Hex $esp)) y se ve ahí (estilo $(Sci 2010 $iniRuta))" (($f51 -eq $esp) -and ((Sci 2010 $iniRuta) -eq 51)) "51=$(Hex $f51)"
+    Verdict "$label | background and text of the $($used.Count) used styles = theme (background $(Hex $db), text $(Hex $df))" ($wrong.Count -eq 0) ($wrong -join '; ')
+    # visible path (51): midpoint between text and background (forced to show with the cursor on the path)
+    $pathStart = [Text.Encoding]::UTF8.GetByteCount($text.Substring(0, $text.IndexOf('text.txt')))
+    [void](Sci 2025 $pathStart); Start-Sleep -Milliseconds 400
+    $f51 = Sci 2481 51; $exp = Blend $df $db
+    Verdict "$label | visible path (51) = midpoint text/background ($(Hex $exp)) and shown there (style $(Sci 2010 $pathStart))" (($f51 -eq $exp) -and ((Sci 2010 $pathStart) -eq 51)) "51=$(Hex $f51)"
     $hot = Sci 2494 0    # SCI_GETHOTSPOTACTIVEFORE
-    $claro = (Brillo $db) -ge 128
-    $contraste = [Math]::Abs((Brillo $hot) - (Brillo $db))
-    Veredicto "$etiqueta | color al pasar el mouse $(Hex $hot) contrasta con el fondo (diferencia $([int]$contraste) de 255)" ($contraste -ge 60 -and ((Sci 2493 52) -eq 1)) ''
-    # el .txt de la misma ventana
-    Npp-Activar $iT; Start-Sleep -Milliseconds 400
+    $light = (Brightness $db) -ge 128
+    $contrast = [Math]::Abs((Brightness $hot) - (Brightness $db))
+    Verdict "$label | color on mouse hover $(Hex $hot) contrasts with the background (difference $([int]$contrast) of 255)" ($contrast -ge 60 -and ((Sci 2493 52) -eq 1)) ''
+    # the .txt in the same window
+    Npp-Activate $iT; Start-Sleep -Milliseconds 400
     $b0t = Sci 2482 0; $f0t = Sci 2481 0
-    Npp-Activar $iS; Start-Sleep -Milliseconds 400
-    Veredicto "$etiqueta | el estilo 0 del .stdoer ($(Hex (Sci 2482 0))/$(Hex (Sci 2481 0))) = el del .txt ($(Hex $b0t)/$(Hex $f0t))" (((Sci 2482 0) -eq $b0t) -and ((Sci 2481 0) -eq $f0t)) ''
+    Npp-Activate $iS; Start-Sleep -Milliseconds 400
+    Verdict "$label | style 0 of the .stdoer ($(Hex (Sci 2482 0))/$(Hex (Sci 2481 0))) = that of the .txt ($(Hex $b0t)/$(Hex $f0t))" (((Sci 2482 0) -eq $b0t) -and ((Sci 2481 0) -eq $f0t)) ''
 }
 
-function Abrir-Doc([string]$etiqueta) {
-    Npp-Abrir @($docS, $docT)
-    $iS = (Npp-Documentos | Where-Object { $_.Ruta -eq $docS }).Indice
-    $iT = (Npp-Documentos | Where-Object { $_.Ruta -eq $docT }).Indice
+function Open-Docs([string]$label) {
+    Npp-Open @($docS, $docT)
+    $iS = (Npp-Documents | Where-Object { $_.Path -eq $docS }).Index
+    $iT = (Npp-Documents | Where-Object { $_.Path -eq $docT }).Index
     return @($iS, $iT)
 }
 
 try {
-    Write-Host '=== Parte A: arranque con distintas configuraciones ==='
-    $variantes = @(
-        @{ n = 'tema por defecto (claro)';          modo = 'no';  tema = '' },
-        @{ n = 'modo oscuro (Deep Black)';          modo = 'yes'; tema = ''; osc = 'Deep Black.xml' },
-        @{ n = 'modo oscuro (DarkModeDefault)';     modo = 'yes'; tema = ''; osc = 'DarkModeDefault.xml' },
-        @{ n = 'tema oscuro Zenburn (sin modo oscuro)'; modo = 'no'; tema = 'Zenburn.xml' },
-        @{ n = 'tema oscuro Monokai';               modo = 'no';  tema = 'Monokai.xml' },
-        @{ n = 'tema oscuro Obsidian';              modo = 'no';  tema = 'Obsidian.xml' },
-        @{ n = 'tema claro con fondo de color: Solarized-light'; modo = 'no'; tema = 'Solarized-light.xml' },
-        @{ n = 'tema de colores raros: Hello Kitty'; modo = 'no'; tema = 'Hello Kitty.xml' }
+    Write-Host '=== Part A: start with different configurations ==='
+    $variants = @(
+        @{ n = 'default theme (light)';              mode = 'no';  theme = '' },
+        @{ n = 'dark mode (Deep Black)';             mode = 'yes'; theme = ''; dark = 'Deep Black.xml' },
+        @{ n = 'dark mode (DarkModeDefault)';        mode = 'yes'; theme = ''; dark = 'DarkModeDefault.xml' },
+        @{ n = 'dark theme Zenburn (no dark mode)';  mode = 'no';  theme = 'Zenburn.xml' },
+        @{ n = 'dark theme Monokai';                 mode = 'no';  theme = 'Monokai.xml' },
+        @{ n = 'dark theme Obsidian';                mode = 'no';  theme = 'Obsidian.xml' },
+        @{ n = 'light theme with a colored background: Solarized-light'; mode = 'no'; theme = 'Solarized-light.xml' },
+        @{ n = 'theme with odd colors: Hello Kitty'; mode = 'no';  theme = 'Hello Kitty.xml' }
     )
-    foreach ($v in $variantes) {
+    foreach ($v in $variants) {
         Write-Host "--- $($v.n)"
-        Config $v.modo $v.tema $v.osc
-        $ix = Abrir-Doc $v.n
-        Medir $v.n $ix[0] $ix[1]
-        Npp-Cerrar
+        Config $v.mode $v.theme $v.dark
+        $ix = Open-Docs $v.n
+        Measure-Theme $v.n $ix[0] $ix[1]
+        Npp-Close
     }
 
-    Write-Host '=== Parte B: cambio de tema en caliente (Configurador de estilos) ==='
+    Write-Host '=== Part B: hot theme change (Style Configurator) ==='
     Config 'no' ''
-    $ix = Abrir-Doc 'caliente'
-    Medir 'inicio (por defecto)' $ix[0] $ix[1]
-    [void](NppMsg $NPPM_MENUCOMMAND 0 46001)       # Configuración > Configurador de estilos
+    $ix = Open-Docs 'hot'
+    Measure-Theme 'start (default)' $ix[0] $ix[1]
+    [void](NppMsg $NPPM_MENUCOMMAND 0 46001)       # Settings > Style Configurator
     $dlg = [IntPtr]::Zero
-    for ($i = 0; $i -lt 40; $i++) { Start-Sleep -Milliseconds 150; $dlg = [NppT]::VentanaConTitulo([uint32]$script:ProcNpp.Id, 'Style Configurator'); if ($dlg -ne [IntPtr]::Zero) { break } }
-    if ($dlg -eq [IntPtr]::Zero) { throw 'No apareció el Configurador de estilos' }
+    for ($i = 0; $i -lt 40; $i++) { Start-Sleep -Milliseconds 150; $dlg = [NppT]::WindowWithTitle([uint32]$script:ProcNpp.Id, 'Style Configurator'); if ($dlg -ne [IntPtr]::Zero) { break } }
+    if ($dlg -eq [IntPtr]::Zero) { throw 'The Style Configurator did not appear' }
     $combo = [NppT]::GetDlgItem($dlg, 2307)
-    function Tema([string]$nombre) {
-        $idx = [int][NppT]::SendMessageStr($combo, 0x014C, [IntPtr](-1), $nombre)      # CB_FINDSTRING
-        if ($idx -lt 0) { throw "No hay tema '$nombre' en el Configurador" }
+    function Pick-Theme([string]$name) {
+        $idx = [int][NppT]::SendMessageStr($combo, 0x014C, [IntPtr](-1), $name)      # CB_FINDSTRING
+        if ($idx -lt 0) { throw "There is no theme '$name' in the Configurator" }
         [void][NppT]::SendMessage($combo, 0x014E, [IntPtr]$idx, [IntPtr]::Zero)         # CB_SETCURSEL
         [void][NppT]::SendMessage($dlg, 0x0111, [IntPtr](2307 + (1 -shl 16)), $combo)   # WM_COMMAND, CBN_SELCHANGE
         Start-Sleep -Milliseconds 1200
     }
     foreach ($t in 'Zenburn', 'Obsidian', 'Default', 'Solarized-light', 'Hello Kitty', 'Black board', 'Default') {
-        Tema $t
-        Medir "en caliente -> $t" $ix[0] $ix[1]
+        Pick-Theme $t
+        Measure-Theme "hot -> $t" $ix[0] $ix[1]
     }
-    # Cancelar el Configurador (deja el tema como estaba)
+    # Cancel the Configurator (leaves the theme as it was)
     [void][NppT]::SendMessage($dlg, 0x0111, [IntPtr]2, [IntPtr]::Zero)
     Start-Sleep -Milliseconds 800
-    Npp-Cerrar
+    Npp-Close
 
-    Write-Host '=== Parte C: modo oscuro / claro en caliente (Preferencias) ==='
+    Write-Host '=== Part C: hot dark / light mode (Preferences) ==='
     Config 'no' ''
-    $ix = Abrir-Doc 'modo en caliente'
-    Medir 'inicio (claro)' $ix[0] $ix[1]
-    [void](NppMsg $NPPM_MENUCOMMAND 0 48011)       # Configuración > Preferencias
+    $ix = Open-Docs 'hot mode'
+    Measure-Theme 'start (light)' $ix[0] $ix[1]
+    [void](NppMsg $NPPM_MENUCOMMAND 0 48011)       # Settings > Preferences
     $pref = [IntPtr]::Zero
-    for ($i = 0; $i -lt 40; $i++) { Start-Sleep -Milliseconds 150; $pref = [NppT]::VentanaConTitulo([uint32]$script:ProcNpp.Id, 'Preferences'); if ($pref -ne [IntPtr]::Zero) { break } }
-    if ($pref -eq [IntPtr]::Zero) { throw 'No apareció Preferencias' }
-    $rClaro = [NppT]::HijoPorId($pref, 7131); $rOscuro = [NppT]::HijoPorId($pref, 7132)
-    if ($rClaro -eq [IntPtr]::Zero -or $rOscuro -eq [IntPtr]::Zero) { throw 'No se encontraron los botones Light mode / Dark mode' }
-    foreach ($paso in 'oscuro', 'claro', 'oscuro', 'claro') {
-        $boton = if ($paso -eq 'oscuro') { $rOscuro } else { $rClaro }
-        [void][NppT]::SendMessage($boton, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)      # BM_CLICK
+    for ($i = 0; $i -lt 40; $i++) { Start-Sleep -Milliseconds 150; $pref = [NppT]::WindowWithTitle([uint32]$script:ProcNpp.Id, 'Preferences'); if ($pref -ne [IntPtr]::Zero) { break } }
+    if ($pref -eq [IntPtr]::Zero) { throw 'Preferences did not appear' }
+    $rLight = [NppT]::ChildById($pref, 7131); $rDark = [NppT]::ChildById($pref, 7132)
+    if ($rLight -eq [IntPtr]::Zero -or $rDark -eq [IntPtr]::Zero) { throw 'The Light mode / Dark mode buttons were not found' }
+    foreach ($step in 'dark', 'light', 'dark', 'light') {
+        $button = if ($step -eq 'dark') { $rDark } else { $rLight }
+        [void][NppT]::SendMessage($button, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)      # BM_CLICK
         Start-Sleep -Milliseconds 1800
-        Medir "modo $paso en caliente" $ix[0] $ix[1]
+        Measure-Theme "$step mode hot" $ix[0] $ix[1]
     }
-    [void][NppT]::SendMessage($pref, 0x0111, [IntPtr]6001, [NppT]::GetDlgItem($pref, 6001))    # Cerrar
+    [void][NppT]::SendMessage($pref, 0x0111, [IntPtr]6001, [NppT]::GetDlgItem($pref, 6001))    # Close
     Start-Sleep -Milliseconds 600
-    Npp-Cerrar
+    Npp-Close
 }
 finally {
-    Copy-Item $respaldo $cfg -Force      # la configuración original del portátil, siempre
+    Copy-Item $backup $cfg -Force      # the portable copy's original configuration, always
 }
-Write-Host "RESUMEN: $mal fallos"
-if ($mal -gt 0) { exit 1 }
+Write-Host "SUMMARY: $bad failures"
+if ($bad -gt 0) { exit 1 }
