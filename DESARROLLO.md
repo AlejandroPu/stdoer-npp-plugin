@@ -1,4 +1,4 @@
-# Stdoer
+# Stdoer — desarrollo
 
 Plugin de Notepad++ (C++, DLL x64 Unicode) para el lenguaje propio de los archivos
 `.stdoer`. Diseño completo en el proyecto de planeación: `diseno/lenguaje-notepad.md`.
